@@ -157,7 +157,7 @@ for data in sampleData.sample_data:
     add_data(data)
 
 
-# Start the app
+# Start the apps
 
 ui.run()
 
