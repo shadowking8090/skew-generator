@@ -1,10 +1,9 @@
 import plotly.graph_objects as go
 
 class Data:
-    def __init__(self, histogram: go.Figure, name: str, color: str):
-        self.histogram = histogram
+    def __init__(self, trace: go.Histogram, name: str, color: str):
+        self.trace = trace
         self.name = name
         self.color = color
-
     
 
