@@ -8,6 +8,7 @@ from sampleData import LAYOUT, sample_data
     
 from data import Data
 from transitions import animate_traces, hide_curve, rescale_curve, show_curve
+import theme
 
 # Sample data
 
@@ -21,6 +22,7 @@ data_by_name = {d.name: d for d in selectable_data}
 
 # The composite starts as the base Composite curve; checked binomials add to it.
 COMPOSITE = next(i for i, d in enumerate(always_data) if d.name == 'Composite')
+PERFECT = next(i for i, d in enumerate(always_data) if d.name == 'Perfect Normal')
 base_y = np.asarray(always_data[COMPOSITE].trace.y)
 checked_names: set[str] = set()
 
@@ -43,7 +45,7 @@ fig.add_trace(go.Scatter(
     x=[], y=[],
     name='Row preview',
     mode='lines',
-    line=dict(color='orange', width=2, dash='dot'),
+    line=dict(color=theme.PALETTE['preview'], width=2, dash='dot'),
     visible=False,
     showlegend=False,
 ))
@@ -62,14 +64,17 @@ fig.update_layout(
     yaxis_fixedrange=True,
 )
 
+# Palette and font on the figure (colors the composite, reference and preview traces)
+theme.style_figure(fig, composite=COMPOSITE, reference=PERFECT, preview=PREVIEW)
+
 # Hide the toolbar (zoom, pan, download, etc.) and the legend
 ui.add_css('.modebar-container, .js-plotly-plot .legend { display: none !important; }')
 
-app.add_static_files('/static', 'static')   # serve ./static at /static
+# Theme: serves ./static, loads the TTF font, colors the page and grid, then the header bar
+theme.setup()
+theme.header()
 
-ui.image('/static/logo.png').classes('w-32')   # w-32 = 8rem wide; try w-24, w-40, etc.
-
-plot = ui.plotly(fig).classes('w-full').style('max-width: 640px; height: 240px')
+plot = ui.plotly(fig).classes('w-full theme-card').style('max-width: 640px; height: 240px')
 
 
 # Hover state and callbacks
@@ -77,7 +82,7 @@ plot = ui.plotly(fig).classes('w-full').style('max-width: 640px; height: 240px')
 hovered_name = None
 
 def update_preview(rescale_only: bool = False) -> None:
-    """Draw the hovered row's curve (orange, dotted) at the height it has in the
+    """Draw the hovered row's curve (teal, dotted) at the height it has in the
     composite, whether or not the row is checked. Hidden when nothing is hovered."""
     data = data_by_name.get(hovered_name)
     if data is None:
@@ -126,7 +131,7 @@ def scale_for(names: set[str]) -> float:
 # Rebuilds the composite for the checked binomials
 def refresh_plot() -> None:
     """Composite = base + every checked binomial, rescaled so its peak is 1.
-    Binomials are never drawn as solid traces; they only appear (orange, dotted)
+    Binomials are never drawn as solid traces; they only appear (teal, dotted)
     as the hover preview, which is redrawn here at the new scale."""
     old_y = np.asarray(fig.data[COMPOSITE].y)
     new_y = scale_for(checked_names) * composite_raw(checked_names)
@@ -183,7 +188,7 @@ grid = ui.aggrid({
     ],
     'rowData': [{'name': d.name} for d in selectable_data],
     'rowSelection': {'mode': 'multiRow'},
-}).classes('w-full').style('max-width: 640px; height: 210px')
+}).classes('w-full theme-card').style('max-width: 640px; height: 210px')
 
 grid.on('rowSelected', on_row_checked, ['data', 'selected', 'rowId'])
 grid.on('cellMouseOver', show_preview, ['data'])
@@ -195,4 +200,4 @@ grid.on('mouseleave', hide_preview)
 
 # Start the app
 
-ui.run()
+ui.run(title='SKEW')
