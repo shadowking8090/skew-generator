@@ -31,21 +31,22 @@ def binom(trials, rate, x=x, height=0.9, bw=None, sigma=None):
     return height * y / y.max()
 
 
+LAYOUT = dict(
+    xaxis_title="Mean Squared Error",
+    yaxis_title="Relative density (peak = 1)",
+    xaxis=dict(range=[0, 1]),
+    yaxis=dict(range=[0, 1.05]),
+)
+
+
 def make_data(y, name, color, width=2, dash=None, fill=None):
-    """Wrap one curve in a single-trace Figure and return it as a Data object."""
+    """Build one curve as a go.Scatter trace and return it as a Data object."""
     trace = go.Scatter(
         x=x, y=y, name=name, mode="lines",
         line=dict(color=color, width=width, **({"dash": dash} if dash else {})),
         **({"fill": "tozeroy", "fillcolor": fill} if fill else {}),
     )
-    fig = go.Figure(trace)
-    fig.update_layout(
-        xaxis_title="Mean Squared Error",
-        yaxis_title="Relative density (peak = 1)",
-        xaxis=dict(range=[0, 1]),
-        yaxis=dict(range=[0, 1.05]),
-    )
-    return Data(histogram=fig, name=name, color=color)
+    return Data(trace=trace, name=name, color=color)
 
 
 sample_data = [
@@ -58,8 +59,6 @@ sample_data = [
 
 
 if __name__ == "__main__":
-    combined = go.Figure()
-    for d in sample_data:
-        combined.add_traces(d.histogram.data)
-    combined.update_layout(sample_data[0].histogram.layout)
-    combined.show()
+    fig = go.Figure([d.trace for d in sample_data])
+    fig.update_layout(**LAYOUT)
+    fig.show()
