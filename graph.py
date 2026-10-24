@@ -22,7 +22,7 @@ data_items: dict[str, Data] = {}
 
 # Histogram figure and display
 
-# Demo histogram bins; incoming figures retain their own bin settings.
+# Demo histogram bins; incoming traces retain their own bin settings.
 histogram_bins = dict(start=10, end=50, size=0.75)
 fig = go.Figure(go.Histogram(
     x=bell_samples(30),
@@ -50,18 +50,13 @@ plot = ui.plotly(fig).classes('w-full').style('max-width: 640px; height: 240px')
 hovered_id = None
 
 
-def preview_traces(item: Data) -> list:
-    """Copy all traces so preview styling never changes the original figure."""
-    traces = list(go.Figure(item.histogram).data)
-    for trace in traces:
-        trace.update(name=item.name, opacity=0.25, visible=True)
-        if hasattr(trace, 'marker'):
-            trace.update(marker_color=item.color)
-        if hasattr(trace, 'line'):
-            trace.update(line_color=item.color)
-        if hasattr(trace, 'fillcolor'):
-            trace.update(fillcolor=item.color)
-    return traces
+def preview_trace(item: Data) -> go.Histogram | go.Scatter:
+    """Copy a trace so preview styling never changes the original object."""
+    trace = type(item.trace)(item.trace.to_plotly_json())
+    trace.update(name=item.name, opacity=0.25, visible=True, marker_color=item.color)
+    if isinstance(trace, go.Scatter):
+        trace.update(line_color=item.color, fillcolor=item.color)
+    return trace
 
 
 def show_preview(event: events.GenericEventArguments) -> None:
@@ -74,7 +69,7 @@ def show_preview(event: events.GenericEventArguments) -> None:
         return
     hovered_id = row_id
     fig.data = fig.data[:1]
-    fig.add_traces(preview_traces(data_items[row_id]))
+    fig.add_trace(preview_trace(data_items[row_id]))
     plot.update()
 
 
@@ -97,12 +92,12 @@ async def on_row_checked(event: events.GenericEventArguments) -> None:
     if not row or checked is None:
         return
 
-    # This is your original Data object, including its histogram figure.
+    # This is your original Data object, including its trace.
     item = data_items.get(row.get('id'))
     if item is None:
         return
 
-    # Add your own processing with item.histogram, item.name, and item.color.
+    # Add your own processing with item.trace, item.name, and item.color.
     action = 'Checked' if checked else 'Unchecked'
     ui.notify(f"{action}: {item.name} ({item.color})")
 
@@ -125,14 +120,14 @@ grid = ui.aggrid({
 def add_data(item: Data) -> str:
     """Add a Data object to the grid and return its unique row ID.
 
-    Example: add_data(Data(my_figure, 'Experiment A', '#22c55e'))
+    Example: add_data(Data(my_trace, 'Experiment A', '#22c55e'))
     Duplicate names are allowed because rows use independent IDs.
     """
     if not isinstance(item, Data):
         raise TypeError('Expected a Data object')
-    if not isinstance(item.histogram, go.Figure):
-        raise TypeError('Data.histogram must be a Plotly Figure')
-    preview_traces(item)  # Validate the figure and color before adding the row.
+    if not isinstance(item.trace, (go.Histogram, go.Scatter)):
+        raise TypeError('Data.trace must be a Plotly Histogram or Scatter trace')
+    preview_trace(item)  # Validate the trace and color before adding the row.
     row_id = uuid4().hex
     data_items[row_id] = item
     grid.options['rowData'].append({
@@ -157,13 +152,13 @@ grid.on('mouseleave', hide_preview)
 
 
 # Demo objects: replace these with add_data(your_data_object) calls.
-for name, age, color in [
-    ('Alice', 25, '#f97316'),
-    ('Bob', 30, '#22c55e'),
-    ('Charlie', 35, '#ec4899'),
+for name, color in [
+    ('Under 18', '#f97316'),
+    ('Dyslexic', '#22c55e'),
+    ('Over 65', '#ec4899'),
 ]:
-    histogram = go.Figure(go.Histogram(x=bell_samples(age), xbins=histogram_bins))
-    add_data(Data(histogram, name, color))
+    trace = go.Histogram(x=bell_samples(1), xbins=histogram_bins)
+    add_data(Data(trace, name, color))
 
 
 # Start the app
