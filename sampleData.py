@@ -19,6 +19,7 @@ from math import erf, lgamma, sqrt
 import numpy as np
 import plotly.graph_objects as go
 from data import Data
+from palette import PALETTE, SERIES_COLORS, rgba
 
 
 # Smaller strength keeps the functions closer to the random 50/50 baseline.
@@ -38,19 +39,19 @@ _integrate = np.trapezoid if hasattr(np, "trapezoid") else np.trapz
 # Keep alpha/beta unchanged to preserve the original shapes. The stroke
 # spread was assumed in the research approximation, not measured.
 FACTOR_PARAMETERS = {
-    "vdh_women_fu": dict(name="Perspective bias", color="#636EFA",
+    "vdh_women_fu": dict(name="Perspective bias", color=SERIES_COLORS[0],
                          alpha=0.533565631451, beta=3.6677385532,
                          shift=0.35, extra_sd=0.08),
-    "vdh_women_bc": dict(name="Hand-layout bias", color="#EF553B",
+    "vdh_women_bc": dict(name="Hand-layout bias", color=SERIES_COLORS[1],
                          alpha=0.240250945708, beta=2.72581011242,
                          shift=0.40, extra_sd=0.08),
-    "age_old": dict(name="Age bias", color="#00A386",
+    "age_old": dict(name="Age bias", color=SERIES_COLORS[2],
                     alpha=0.908378947368, beta=2.33583157895,
                     shift=0.20, extra_sd=0.16),
-    "command_complex": dict(name="Instruction-complexity bias", color="#AB63FA",
+    "command_complex": dict(name="Instruction-complexity bias", color=SERIES_COLORS[3],
                             alpha=0.583128559188, beta=7.0845711014,
                             shift=0.41, extra_sd=0.08),
-    "hand_stroke": dict(name="Stroke-related bias", color="#E58D16",
+    "hand_stroke": dict(name="Stroke-related bias", color=SERIES_COLORS[4],
                         alpha=3.62, beta=16.38,
                         shift=0.31, extra_sd=0.08),
 }
@@ -65,7 +66,7 @@ _NAME_TO_ID.update(zip(
 
 LAYOUT = dict(
     xaxis_title="Mean squared error (0 = no errors, 1 = all wrong)",
-    yaxis_title="Relative density (peak scaled)",
+    yaxis_title="Relative density",
     xaxis=dict(range=[0, 1]),
     yaxis=dict(range=[0, 1.05]),
 )
@@ -322,9 +323,9 @@ RESEARCH_PARAMETERS = [
     for key, p in FACTOR_PARAMETERS.items()
 ]
 sample_data = [
-    make_data(composite_curve(), "Composite", "grey",
-              fill="rgba(200,200,200,0.75)", metadata=composite_metadata()),
-    make_data(perfect_normal(x), "Perfect Normal", "black", width=3, dash="dot"),
+    make_data(composite_curve(), "Composite", PALETTE["accent"], width=2.5,
+              fill=rgba(PALETTE["accent"], 0.15), metadata=composite_metadata()),
+    make_data(perfect_normal(x), "Perfect Normal", PALETTE["ink"], width=2, dash="dot"),
 ]
 for key, parameters in zip(FACTOR_PARAMETERS, RESEARCH_PARAMETERS):
     sample_data.append(make_data(peak_scale(SYNTHETIC_DENSITIES[key]),

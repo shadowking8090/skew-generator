@@ -3,7 +3,7 @@
 Usage in main.py:
 
     import theme
-    theme.style_figure(fig, composite=..., reference=..., preview=...)
+    theme.style_figure(fig)
     theme.setup()      # fonts, page colors, grid colors (call before building the page)
     theme.header()     # logo bar across the top
 
@@ -16,22 +16,13 @@ from pathlib import Path
 
 from nicegui import app, ui
 
+from palette import PALETTE, SERIES_COLORS, rgba  # noqa: F401  (re-exported)
+
 STATIC_DIR = Path(__file__).parent / 'static'
 
 # ------------------------------------------------------------------ palette
 
-PALETTE = dict(
-    ink='#0F1B2D',        # header bar, reference line
-    page='#F5F7FA',       # page background
-    panel='#FFFFFF',      # plot and grid background
-    text='#1B2735',       # primary text
-    muted='#5B6B7F',      # axes, secondary text
-    border='#E3E8EE',     # gridlines, card borders
-    accent='#2F6FED',     # composite line and fill
-    preview='#12A594',    # hover preview
-    selected='#E8F0FE',   # selected grid row
-    hover='#F0F4FA',      # hovered grid row
-)
+# PALETTE and SERIES_COLORS live in palette.py so sampleData.py can use them too.
 
 # --------------------------------------------------------------------- font
 
@@ -124,8 +115,9 @@ def header() -> None:
             ui.label('SKEW').classes('text-white text-lg font-bold')   # fallback if the file is missing
 
 
-def style_figure(fig, *, composite: int, reference: int, preview: int) -> None:
-    """Apply the palette and font to a Plotly figure. Pass the trace indices."""
+def style_figure(fig) -> None:
+    """Apply the palette and font to a Plotly figure's layout and axes.
+    Trace colors come from sampleData.py (Data.color), which uses the same palette."""
     p = PALETTE
     fig.update_layout(
         paper_bgcolor=p['panel'],
@@ -138,9 +130,3 @@ def style_figure(fig, *, composite: int, reference: int, preview: int) -> None:
             gridcolor=p['border'], zerolinecolor=p['border'], linecolor=p['border'],
             tickfont=dict(color=p['muted']), title_font=dict(color=p['muted']),
         )
-    fig.data[composite].update(
-        line=dict(color=p['accent'], width=2.5),
-        fill='tozeroy', fillcolor='rgba(47, 111, 237, 0.15)',
-    )
-    fig.data[reference].update(line=dict(color=p['ink'], width=2, dash='dot'))
-    fig.data[preview].update(line=dict(color=p['preview'], width=2, dash='dot'))

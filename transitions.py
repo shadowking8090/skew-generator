@@ -9,8 +9,10 @@ Two transitions:
 
 * animate_traces(...)       tween a trace's y-values to new values (composite)
 * show_curve / hide_curve / rescale_curve
-                            the hover preview: its height is a multiplier that
-                            grows 0 -> 1 on hover and shrinks 1 -> 0 on unhover
+                            the hover previews: a preview's height is a multiplier
+                            that grows 0 -> 1 on hover and shrinks 1 -> 0 on unhover.
+                            Every preview trace has its own state and its own color,
+                            so one can shrink away while the next one grows in.
 
 Keep the Python figure in sync yourself (assign fig.data[i].y etc.); these
 functions only change what the browser shows. Never call plot.update() while
@@ -62,7 +64,11 @@ _TWEEN_JS = '''
     const starts = traces.map((idx, j) => live[idx] || froms[j] || []);
 
     if (gd._tweenFrame) cancelAnimationFrame(gd._tweenFrame);
+    // Record where each trace is NOW, before any frame has been drawn. If another
+    // request arrives before this tween's first frame (e.g. select-all), it then
+    // starts from what is on screen instead of from an undrawn intermediate target.
     gd._tweenCur = {};
+    traces.forEach((idx, j) => { gd._tweenCur[idx] = starts[j]; });
 
     const t0 = performance.now();
     const step = (now) => {
@@ -137,11 +143,15 @@ _PREVIEW_JS = '''
     const idx = __INDEX__;
     const mode = __MODE__;           // 'show' | 'hide' | 'rescale'
     const duration = __DURATION__;
+    const color = __COLOR__;         // line color for 'show', or null to keep it
 ''' + _EASINGS_JS + '''
     const ease = easings['cubic-in-out'];
 
+    // Each preview trace has its own state, so several can animate at once
+    // (one shrinking away while the next one grows in).
     // m = height multiplier (0..1); base = the curve at full height.
-    const st = gd._preview || (gd._preview = {m: 0, base: [], frame: null});
+    const all = gd._previews || (gd._previews = {});
+    const st = all[idx] || (all[idx] = {m: 0, base: [], frame: null});
     const draw = () => Plotly.restyle(gd, {y: [st.base.map(v => v * st.m)]}, [idx]);
 
     const run = (to) => {
@@ -166,10 +176,12 @@ _PREVIEW_JS = '''
         st.frame = null;
         st.base = __Y__;
         st.m = 0;
-        Plotly.restyle(gd, {x: [__X__], y: [st.base.map(() => 0)], visible: [true]}, [idx]);
+        const props = {x: [__X__], y: [st.base.map(() => 0)], visible: [true]};
+        if (color) props['line.color'] = [color];
+        Plotly.restyle(gd, props, [idx]);
         run(1);
     } else if (mode === 'hide') {
-        run(0);
+        if (st.m > 0 || st.frame) run(0);
     } else if (mode === 'rescale') {
         st.base = __Y__;
         if (!st.frame && st.m > 0) draw();
@@ -178,25 +190,26 @@ _PREVIEW_JS = '''
 '''
 
 
-def _preview(plot, index, mode, x=None, y=None, duration=PREVIEW_DURATION) -> None:
+def _preview(plot, index, mode, x=None, y=None, color=None, duration=PREVIEW_DURATION) -> None:
     js = (_PREVIEW_JS
           .replace('__ID__', str(plot.id))
           .replace('__INDEX__', str(int(index)))
           .replace('__MODE__', json.dumps(mode))
           .replace('__DURATION__', str(int(duration)))
+          .replace('__COLOR__', json.dumps(color))
           .replace('__X__', json.dumps(_floats(x) if x is not None else []))
           .replace('__Y__', json.dumps(_floats(y) if y is not None else [])))
     ui.run_javascript(js)
 
 
 def show_curve(plot: ui.plotly, index: int, x: Sequence[float], y: Sequence[float],
-               duration: int = PREVIEW_DURATION) -> None:
-    """Show trace `index` with curve (x, y), growing its height from 0 to full."""
-    _preview(plot, index, 'show', x, y, duration)
+               color: Optional[str] = None, duration: int = PREVIEW_DURATION) -> None:
+    """Show trace `index` with curve (x, y) in `color`, growing its height from 0 to full."""
+    _preview(plot, index, 'show', x, y, color, duration)
 
 
 def hide_curve(plot: ui.plotly, index: int, duration: int = PREVIEW_DURATION) -> None:
-    """Shrink trace `index` to 0 height, then hide it."""
+    """Shrink trace `index` to 0 height, then hide it. Other previews are unaffected."""
     _preview(plot, index, 'hide', duration=duration)
 
 
