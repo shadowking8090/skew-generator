@@ -43,15 +43,21 @@ fig.add_trace(go.Scatter(
     name='Row preview',
     mode='lines',
     line=dict(color='orange', width=2, dash='dot'),
+    fill='tozeroy',
+    opacity=0.45,
     visible=False,
     showlegend=False,
 ))
 
 fig.update_layout(
     **LAYOUT,
-    height=240,
-    margin=dict(l=45, r=15, t=15, b=40),
+    autosize=True,
+    margin=dict(l=65, r=16, t=20, b=60),
     template='plotly_white',
+    paper_bgcolor='rgba(0,0,0,0)',
+    plot_bgcolor='rgba(0,0,0,0)',
+    font=dict(family='Arial, sans-serif', size=16, weight=700, color='#f1f5f9'),
+    hoverlabel=dict(bgcolor='#26292f', font=dict(weight=700, color='#f1f5f9')),
     showlegend=False,
     uirevision='keep-view',
     # Hover tooltips only: no drag/zoom/pan
@@ -60,11 +66,79 @@ fig.update_layout(
     xaxis_fixedrange=True,
     yaxis_fixedrange=True,
 )
+fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, ticks='', title_font_size=28, automargin=True)
+fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, ticks='', title_font_size=28, automargin=True)
 
 # Hide the toolbar (zoom, pan, download, etc.) and the legend
+ui.add_css('''
+    body {
+        min-height: 100vh;
+        isolation: isolate;
+        background-color: #191b1f;
+        background-image:
+            repeating-linear-gradient(45deg, rgba(255,255,255,0.055) 0 1px, transparent 1px 40px),
+            repeating-linear-gradient(-45deg, rgba(255,255,255,0.055) 0 1px, transparent 1px 40px),
+            radial-gradient(ellipse at top left, #3c4047 0%, #26292f 45%, #17191d 100%);
+        background-size: auto, auto, 100% 100%;
+        background-attachment: fixed;
+    }
+    /* Fixed ambient layers stay behind the app and never intercept clicks. */
+    body::before,
+    body::after {
+        content: '';
+        position: fixed;
+        inset: -20vh -20vw;
+        pointer-events: none;
+        z-index: -1;
+        will-change: transform, opacity;
+    }
+    body::before {
+        background:
+            radial-gradient(ellipse at 20% 30%, #6366f16b 0%, transparent 42%),
+            radial-gradient(ellipse at 80% 60%, #06b6d44d 0%, transparent 40%),
+            radial-gradient(ellipse at 50% 85%, #a855f74d 0%, transparent 38%);
+        filter: blur(45px);
+        animation: ambient-drift 24s ease-in-out infinite alternate;
+    }
+    body::after {
+        background:
+            radial-gradient(ellipse at 65% 25%, #c4b5fd30 0%, transparent 30%),
+            radial-gradient(ellipse at 25% 70%, #67e8f930 0%, transparent 35%);
+        filter: blur(28px);
+        animation: ambient-drift 18s ease-in-out -9s infinite alternate-reverse;
+    }
+    @keyframes ambient-drift {
+        0% { transform: translate3d(-4%, -3%, 0) rotate(-5deg) scale(1); opacity: .65; }
+        50% { transform: translate3d(3%, 4%, 0) rotate(2deg) scale(1.08); opacity: 1; }
+        100% { transform: translate3d(5%, -2%, 0) rotate(7deg) scale(1.04); opacity: .8; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        body::before, body::after { animation: none; will-change: auto; }
+    }
+    .nicegui-content {
+        background: transparent; font-weight: 700;
+        width: 100%; box-sizing: border-box;
+        padding: clamp(12px, 3vw, 32px); align-items: center;
+    }
+    .responsive-chart {
+        width: 100%; max-width: 1100px; min-width: 0;
+        height: clamp(280px, 55svh, 520px);
+    }
+    .compact-grid {
+        width: 100%; max-width: 800px; min-width: 0;
+        margin-top: clamp(16px, 5svh, 48px);
+    }
+    @media (max-width: 600px) {
+        .responsive-chart .xtitle,
+        .responsive-chart .ytitle { font-size: 22px !important; }
+    }
+    .js-plotly-plot text,
+    .compact-grid .ag-cell,
+    .compact-grid .ag-header-cell-text { font-weight: 700 !important; }
+''')
 ui.add_css('.modebar-container, .js-plotly-plot .legend { display: none !important; }')
 
-plot = ui.plotly(fig).classes('w-full').style('max-width: 640px; height: 240px')
+plot = ui.plotly(fig).classes('responsive-chart self-center')
 
 
 # Hover state and callbacks
@@ -72,15 +146,19 @@ plot = ui.plotly(fig).classes('w-full').style('max-width: 640px; height: 240px')
 hovered_name = None
 
 def update_preview() -> None:
-    """Draw the hovered row's curve (orange, dotted) at the height it has in the
-    composite, whether or not the row is checked. Hidden when nothing is hovered."""
+    """Fill the hovered curve in its own color at the composite's scale.
+
+    Partial opacity lets overlapping filled areas blend into a different color.
+    The preview disappears when no row is hovered.
+    """
     data = data_by_name.get(hovered_name)
     if data is None:
         fig.data[PREVIEW].visible = False
         return
     scale = scale_for(checked_names | {data.name})
     fig.data[PREVIEW].update(x=data.trace.x, y=scale * np.asarray(data.trace.y),
-                             name=f'{data.name} preview', visible=True)
+                             name=f'{data.name} preview', visible=True,
+                             line_color=data.color, fillcolor=data.color)
 
 def show_preview(event: events.GenericEventArguments) -> None:
     global hovered_name
@@ -114,8 +192,8 @@ def scale_for(names: set[str]) -> float:
 # Rebuilds the composite for the checked binomials
 def refresh_plot() -> None:
     """Composite = base + every checked binomial, rescaled so its peak is 1.
-    Binomials are never drawn as solid traces; they only appear (orange, dotted)
-    as the hover preview, which is redrawn here at the new scale."""
+    Binomials appear as colored, filled hover previews, which are redrawn here
+    at the new scale."""
     fig.data[COMPOSITE].y = scale_for(checked_names) * composite_raw(checked_names)
     update_preview()
     plot.update()
@@ -160,14 +238,36 @@ def add_data(item: Data) -> None:
 
 
 # Data grid
+ui.add_css('''
+    .compact-grid .ag-layout-auto-height .ag-center-cols-viewport,
+    .compact-grid .ag-layout-auto-height .ag-center-cols-container {
+        min-height: 0 !important;
+    }
+    .compact-grid .ag-checkbox-input-wrapper:focus-within,
+    .compact-grid .ag-checkbox-input:focus {
+        outline: none !important;
+        box-shadow: none !important;
+    }
+''')
+
 grid = ui.aggrid({
-    'defaultColDef': {'flex': 1, 'minWidth': 100},
+    'defaultColDef': {'flex': 1, 'minWidth': 100, 'resizable': False},
+    'selectionColumnDef': {'resizable': False},
+    'domLayout': 'autoHeight',
     'columnDefs': [
-        {'field': 'name', 'headerName': 'Name'},
+        {'field': 'name', 'headerName': 'Name', 'wrapText': True, 'autoHeight': True},
     ],
     'rowData': [{'name': d.name} for d in selectable_data],
-    'rowSelection': {'mode': 'multiRow'},
-}).classes('w-full').style('max-width: 640px; height: 210px')
+    'rowSelection': {
+        'mode': 'multiRow',
+        'checkboxes': True,
+        'headerCheckbox': False,
+        'enableClickSelection': False,
+    },
+    'suppressCellFocus': True,
+}).classes('w-full self-center compact-grid').style(
+    'height: auto; resize: none'
+)
 
 grid.on('rowSelected', on_row_checked, ['data', 'selected', 'rowId'])
 grid.on('cellMouseOver', show_preview, ['data'])
