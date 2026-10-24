@@ -5,6 +5,3 @@ class Data:
         self.histogram = histogram
         self.name = name
         self.color = color
-
-    
-
