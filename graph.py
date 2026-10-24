@@ -1,5 +1,6 @@
 # Imports
 
+import sampleData 
 from statistics import NormalDist
 from uuid import uuid4
 
@@ -152,13 +153,8 @@ grid.on('mouseleave', hide_preview)
 
 
 # Demo objects: replace these with add_data(your_data_object) calls.
-for name, color in [
-    ('Under 18', '#f97316'),
-    ('Dyslexic', '#22c55e'),
-    ('Over 65', '#ec4899'),
-]:
-    trace = go.Histogram(x=bell_samples(1), xbins=histogram_bins)
-    add_data(Data(trace, name, color))
+for data in sampleData.sample_data:
+    add_data(data)
 
 
 # Start the app
