@@ -29,7 +29,7 @@ def binom(trials, rate, x=x, height=0.9, bw=None, sigma=None):
 fig = go.Figure()
 
 fig.add_trace(go.Scatter(x=x, y=binom(50, 0.50, height=1.0, sigma=SIGMA),
-                         name="Binomial n=50, p=0.5 (follows normal)",
+                         name="Composite",
                          mode="lines", line=dict(color="grey", width=2),
                          fill="tozeroy", fillcolor="rgba(200,200,200,0.75)"))
 
@@ -37,7 +37,7 @@ for trials, rate in [(20, 0.30), (30, 0.65)]:
     fig.add_trace(go.Scatter(x=x, y=binom(trials, rate), name=f"Binomial n={trials}, p={rate}",
                              mode="lines", line=dict(width=2)))
 
-fig.add_trace(go.Scatter(x=x, y=perfect_normal(x), name=f"Perfect normal (μ={MU}, σ={SIGMA})",
+fig.add_trace(go.Scatter(x=x, y=perfect_normal(x), name=f"Perfect Normal",
                          mode="lines", line=dict(color="black", width=3, dash="dot")))
 
 fig.update_layout(xaxis_title="Mean Squared Error", yaxis_title="Relative density (peak = 1)",
