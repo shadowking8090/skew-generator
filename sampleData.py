@@ -33,7 +33,7 @@ def binom(trials, rate, x=x, height=0.9, bw=None, sigma=None):
 
 LAYOUT = dict(
     xaxis_title="Mean Squared Error",
-    yaxis_title="Relative density (peak = 1)",
+    yaxis_title="Relative density",
     xaxis=dict(range=[0, 1]),
     yaxis=dict(range=[0, 1.05]),
 )
