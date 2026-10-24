@@ -1,106 +1,111 @@
 # Imports
 
-import sampleData 
-from statistics import NormalDist
-from uuid import uuid4
-
 import plotly.graph_objects as go
 from nicegui import events, ui
 
-from data import Data
+from sampleData import LAYOUT, sample_data
 
 
 # Sample data
 
-def bell_samples(mean: float, spread: float = 4, count: int = 2000) -> list[float]:
-    """Create evenly spaced normal-distribution samples for a smooth bell shape."""
-    distribution = NormalDist(mean, spread)
-    return [distribution.inv_cdf((i + 0.5) / count) for i in range(count)]
+# Always plotted, never listed in the grid
+ALWAYS_SHOWN = {'Composite', 'Perfect Normal'}
+NOT_HOVERABLE = {'Perfect Normal'}
+
+always_data = [d for d in sample_data if d.name in ALWAYS_SHOWN]
+selectable_data = [d for d in sample_data if d.name not in ALWAYS_SHOWN]
+data_by_name = {d.name: d for d in selectable_data}
 
 
-# Keep the original objects in Python; only row metadata goes to the browser.
-data_items: dict[str, Data] = {}
+# Figure and display
 
-# Histogram figure and display
+# Trace order is draw order (first = furthest back):
+# always-shown traces, then the hover-preview trace, then checked rows.
+fig = go.Figure()
 
-# Demo histogram bins; incoming traces retain their own bin settings.
-histogram_bins = dict(start=10, end=50, size=0.75)
-fig = go.Figure(go.Histogram(
-    x=bell_samples(30),
-    name='Current',
-    xbins=histogram_bins,
-    marker_color='#6366f1',
+for d in always_data:
+    fig.add_trace(go.Scatter(
+        d.trace,
+        showlegend=False,
+        hoverinfo='skip' if d.name in NOT_HOVERABLE else None,
+    ))
+
+PREVIEW = len(always_data)  # index of the hover-preview trace
+fig.add_trace(go.Scatter(
+    x=[], y=[],
+    name='Row preview',
+    mode='lines',
+    line=dict(color='orange', width=3, dash='dash'),
+    opacity=0.6,
+    visible=False,
+    showlegend=False,
 ))
 
 fig.update_layout(
+    **LAYOUT,
     height=240,
     margin=dict(l=45, r=15, t=15, b=40),
     template='plotly_white',
     showlegend=False,
-    xaxis=dict(title='Value'),
-    yaxis=dict(title='Count / value'),
-    barmode='overlay',
     uirevision='keep-view',
+    # Hover tooltips only: no drag/zoom/pan
+    hovermode='closest',
+    dragmode=False,
+    xaxis_fixedrange=True,
+    yaxis_fixedrange=True,
 )
+
+# Hide the toolbar (zoom, pan, download, etc.) and the legend
+ui.add_css('.modebar-container, .js-plotly-plot .legend { display: none !important; }')
 
 plot = ui.plotly(fig).classes('w-full').style('max-width: 640px; height: 240px')
 
 
 # Hover state and callbacks
 
-hovered_id = None
-
-
-def preview_trace(item: Data) -> go.Histogram | go.Scatter:
-    """Copy a trace so preview styling never changes the original object."""
-    trace = type(item.trace)(item.trace.to_plotly_json())
-    trace.update(name=item.name, opacity=0.25, visible=True, marker_color=item.color)
-    if isinstance(trace, go.Scatter):
-        trace.update(line_color=item.color, fillcolor=item.color)
-    return trace
-
+hovered_name = None
 
 def show_preview(event: events.GenericEventArguments) -> None:
-    global hovered_id
-    row_id = (event.args.get('data') or {}).get('id')
-    if row_id not in data_items:
-        hide_preview()
+    global hovered_name
+    row = event.args.get('data') or {}
+    name = row.get('name')
+    if name == hovered_name:
         return
-    if row_id == hovered_id:
-        return
-    hovered_id = row_id
-    fig.data = fig.data[:1]
-    fig.add_trace(preview_trace(data_items[row_id]))
+    hovered_name = name
+    data = data_by_name.get(name)
+    if data is None:
+        fig.data[PREVIEW].visible = False
+    else:
+        fig.data[PREVIEW].update(x=data.trace.x, y=data.trace.y,
+                           name=f'{name} preview', visible=True)
     plot.update()
-
 
 def hide_preview() -> None:
-    global hovered_id
-    if hovered_id is None:
+    global hovered_name
+    if hovered_name is None:
         return
-    hovered_id = None
-    fig.data = fig.data[:1]
+    hovered_name = None
+    fig.data[PREVIEW].visible = False
     plot.update()
 
 
-# Gets data from the selected row in the grid when checking
+# Adds or removes the row's trace on the main plot when checking
 async def on_row_checked(event: events.GenericEventArguments) -> None:
     row = event.args.get('data') or {}
     checked = event.args.get('selected')
 
     if checked is None and event.args.get('rowId') is not None:
         checked = await grid.run_row_method(event.args['rowId'], 'isSelected')
-    if not row or checked is None:
+    data = data_by_name.get(row.get('name'))
+    if data is None or checked is None:
         return
 
-    # This is your original Data object, including its trace.
-    item = data_items.get(row.get('id'))
-    if item is None:
-        return
-
-    # Add your own processing with item.trace, item.name, and item.color.
-    action = 'Checked' if checked else 'Unchecked'
-    ui.notify(f"{action}: {item.name} ({item.color})")
+    shown = any(t.name == data.name for t in fig.data[PREVIEW + 1:])
+    if checked and not shown:
+        fig.add_trace(go.Scatter(data.trace, showlegend=False))
+    elif not checked and shown:
+        fig.data = list(fig.data[:PREVIEW + 1]) + [t for t in fig.data[PREVIEW + 1:] if t.name != data.name]
+    plot.update()
 
 
 # Data grid
@@ -108,39 +113,11 @@ grid = ui.aggrid({
     'defaultColDef': {'flex': 1, 'minWidth': 100},
     'columnDefs': [
         {'field': 'name', 'headerName': 'Name'},
-        {'field': 'color', 'headerName': 'Color'}
     ],
-    'rowData': [],
-    ':getRowId': 'params => params.data.id',
+    'rowData': [{'name': d.name} for d in selectable_data],
     'rowSelection': {'mode': 'multiRow'},
 }).classes('w-full').style('max-width: 640px; height: 210px')
 
-
-
-
-def add_data(item: Data) -> str:
-    """Add a Data object to the grid and return its unique row ID.
-
-    Example: add_data(Data(my_trace, 'Experiment A', '#22c55e'))
-    Duplicate names are allowed because rows use independent IDs.
-    """
-    if not isinstance(item, Data):
-        raise TypeError('Expected a Data object')
-    if not isinstance(item.trace, (go.Histogram, go.Scatter)):
-        raise TypeError('Data.trace must be a Plotly Histogram or Scatter trace')
-    preview_trace(item)  # Validate the trace and color before adding the row.
-    row_id = uuid4().hex
-    data_items[row_id] = item
-    grid.options['rowData'].append({
-        'id': row_id,
-        'name': item.name,
-        'color': item.color,
-    })
-    grid.update()
-    return row_id
-
-
-# Checkbox and hover event connections
 
 grid.on('rowSelected', on_row_checked, ['data', 'selected', 'rowId'])
 grid.on('cellMouseOver', show_preview, ['data'])
@@ -151,13 +128,6 @@ grid.on('mouseout', hide_preview, js_handler='''(event) => {
 grid.on('mouseleave', hide_preview)
 
 
-
-# Demo objects: replace these with add_data(your_data_object) calls.
-for data in sampleData.sample_data:
-    add_data(data)
-
-
-# Start the apps
+# Start the app
 
 ui.run()
-
