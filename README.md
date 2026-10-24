@@ -1,63 +1,13 @@
-# Distribution Preview
+# Skew Generator
 
-A small NiceGUI app that plots probability-density-style curves with Plotly. A table lists selectable curves: hovering a row previews its curve on the plot, and checking a row adds it.
+Skew Generator shows how bias can skew data that starts out completely random. The example scenario is simple: a group of people is asked to tell their left from their right, and each person has a 50/50 chance of getting it wrong. With no bias, the results form a normal distribution centered on the middle. We then add factors that change how likely certain groups are to get the answer wrong. For example, children under the age of 5 might mix up left and right more often than everyone else. Adding a group like this pulls the distribution away from the normal curve, and you can watch random data become biased data on the graph.
 
-## Files
+The goal is to help with research bottlenecks. Gathering empirical data takes a long time. Simulating how known or suspected biases would shift a baseline distribution lets researchers see the likely shape of their data before collecting it, and lets them compare scenarios quickly. Every scenario starts from a normal distribution, and each bias is a factor layered on top of it.
 
-| File | Purpose |
-|---|---|
-| `data.py` | `Data` class: holds one curve as a Plotly `go.Scatter` trace, plus its `name` and `color`. |
-| `sampleData.py` | Generates the sample curves and exposes them as `sample_data` (a list of `Data` objects) and `LAYOUT` (shared axis titles and ranges). |
-| `main.py` | The NiceGUI app: plot, table, hover preview, and check/uncheck behavior. |
+When you open the app, the graph shows two curves that stay on screen the whole time. The grey filled curve is the composite. It starts as the unbiased, purely random result, which is a smoothed binomial with 50 trials and a 50% chance, scaled to match a normal curve. The black dotted curve is a perfect normal distribution with a mean of 0.5 and a standard deviation of 0.25. It's the reference that shows how far the data has moved from random. Below the graph is a table of bias factors. Hovering over a row previews that factor's curve on the graph. Checking a row adds that factor into the composite, and the composite is rescaled so its peak stays at 1. As you check more factors, you can see the composite skew away from the perfect normal. Unchecking a row removes its effect. The sample factors right now are two binomial groups, one with 20 trials and a 30% rate and one with 30 trials and a 65% rate. They stand in for groups that lean one way or the other. The graph is for viewing only: zooming, panning and the toolbar are turned off, and only hover tooltips work.
 
-Keep all three in the same folder.
+The code is split into a few files. `data.py` defines a small `Data` class that holds one curve as a Plotly trace, along with its name and color. `sampleData.py` does the math. It computes exact binomial probabilities, smooths them into curves, defines the perfect normal, and builds the list of sample curves and the shared axis settings. `main.py` is the NiceGUI app with animated transitions and the logo from the `static` folder. When a factor is checked, the composite eases smoothly into its new shape, and hover previews grow and shrink in as an orange dotted line. `transitions.py` handles those animations in the browser so the graph doesn't jump when it changes. `graph.py` is an alternate version of the app with a dark, responsive design. It shows hover previews as filled curves in each factor's own color, and it updates without animation.
 
-## Setup
+`wrapper.py` is where the project is headed next. Right now the only scenario is telling left from right. The wrapper will let a user type a request such as "graph of ___". It will then come up with biases that fit that topic and apply them to the default normal distribution, so any scenario can be explored the same way. The file is empty for now.
 
-```bash
-pip install nicegui plotly numpy
-python main.py
-```
-
-## How it works
-
-### Data (`data.py`, `sampleData.py`)
-
-`Data(trace, name, color)` wraps a single `go.Scatter` trace. `sampleData.py` builds four curves with `make_data(y, name, color, ...)`:
-
-| Name | Color | Notes |
-|---|---|---|
-| Composite | `grey` | Binomial (n=50, p=0.5) smoothed to SD 0.25, translucent fill |
-| Binomial n=20, p=0.3 | `#636EFA` | Smoothed binomial proportion |
-| Binomial n=30, p=0.65 | `#EF553B` | Smoothed binomial proportion |
-| Perfect Normal | `black` | Dotted line, width 3, mean 0.5 and SD 0.25 |
-
-Each curve is plotted over `x = linspace(0, 1, 601)`, with the axes labelled "Mean Squared Error" (x) and "Relative density (peak = 1)" (y).
-
-Running `python sampleData.py` directly merges all the traces into one figure and shows it, which is useful for previewing the curves on their own.
-
-### App (`main.py`)
-
-- **Always shown:** Composite and Perfect Normal are plotted on load and do not appear in the table.
-- **Table:** Lists the remaining curves (the two binomials) in a single Name column, with checkboxes.
-- **Hover preview:** Hovering a table row draws that curve as an orange dashed line. It disappears when the mouse leaves the table row.
-- **Checking a row:** Adds that curve to the plot in its own color. Unchecking removes it.
-- **Layering:** Traces are drawn in the order they are added: Composite and Perfect Normal at the back, then the hover preview, then checked rows on top.
-- **Perfect Normal is not hoverable:** It has no tooltip and does not take hover from the curves beneath it.
-- **Plot interactions:** Only hover tooltips are enabled. Drag, zoom, pan, legend clicks and the toolbar are all disabled or hidden, and the legend is hidden.
-
-## Customizing
-
-All of these are near the top of `main.py` unless noted.
-
-- **Add a curve:** Add a `make_data(...)` entry to `sample_data` in `sampleData.py`. It appears in the table automatically.
-- **Always show a curve (and hide it from the table):** Add its name to `ALWAYS_SHOWN`.
-- **Make a curve unhoverable:** Add its name to `NOT_HOVERABLE`.
-- **Axes:** Edit `LAYOUT` in `sampleData.py`.
-
-Curve names must be unique, since they are used as lookup keys in the table and plot.
-
-## Notes
-
-- Hover preview and the checkbox handlers are wired to the grid's `cellMouseOver`, `mouseout`, `mouseleave` and `rowSelected` events.
-- The plot has no zoom or pan, so the axis ranges set in `LAYOUT` are fixed.
+To run the project, install the dependencies with `py -m pip install -r requirements.txt` (or `pip install nicegui plotly numpy`), then start the app with `python main.py`, or `python graph.py` for the alternate design. Running `python sampleData.py` on its own opens a plain Plotly figure with all the sample curves, which is useful for checking the curves without the app. To add a new bias factor, add a `make_data(...)` entry to `sample_data` in `sampleData.py`, and it will appear in the table automatically. Curves listed in `ALWAYS_SHOWN` near the top of `main.py` stay on the graph and are left out of the table. Curves listed in `NOT_HOVERABLE` don't show tooltips. Every curve name must be unique because names are used to look curves up. Axis titles and ranges are set in `LAYOUT` in `sampleData.py`.
