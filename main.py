@@ -50,4 +50,4 @@ ui.run(
     reload=False,
     title='SKEW',
     favicon=Path(__file__).parent / 'static' / 'favicon.png'
-)
+)
