@@ -5,6 +5,7 @@ from nicegui import run, ui
 
 import theme
 from projects import PROJECTS, create_project
+from wrapper import RETRY_MESSAGE, project_error_message
 
 
 def home_page() -> None:
@@ -28,15 +29,20 @@ def home_page() -> None:
 
         async def send_prompt() -> None:
             prompt = (prompt_box.value or '').strip()
-            if not prompt or not send_button.enabled:
+            if not send_button.enabled:
+                return
+            if not prompt:
+                ui.notify(RETRY_MESSAGE, type='negative')
                 return
             send_button.disable()
-            reply_label.text = 'Creating project with five parameters...'
+            reply_label.text = 'Creating project...'
             try:
                 project = await run.io_bound(create_project, prompt)
                 ui.navigate.to(f'/project/{project.id}')
             except Exception as e:
-                reply_label.text = f'Error: {e}'
+                message = project_error_message(e)
+                reply_label.text = message
+                ui.notify(message, type='negative')
             finally:
                 send_button.enable()
 

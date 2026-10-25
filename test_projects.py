@@ -20,6 +20,8 @@ def test_creation_registers_defaults_and_five_independent_parameters():
         project = projects.create_project('Fatigue and recognition')
     try:
         assert 'exactly 5' in ask.call_args.args[0]
+        ask.assert_called_once()
+        assert 'First decide whether' in ask.call_args.args[0]
         assert projects.PROJECTS_BY_ID[project.id] is project
         assert project in projects.PROJECTS
         assert project.title == 'Recognition under fatigue'
@@ -41,5 +43,18 @@ def test_wrong_parameter_count_does_not_register_project():
     with patch.object(wrapper, 'ask', return_value=reply(4)):
         with pytest.raises(ValueError, match='exactly 5'):
             projects.create_project('Fatigue')
+    assert projects.PROJECTS == before
+    assert projects.PROJECTS_BY_ID == registry
+
+
+def test_invalid_topic_stops_before_curve_creation_or_registration():
+    before = list(projects.PROJECTS)
+    registry = dict(projects.PROJECTS_BY_ID)
+    with patch.object(wrapper, 'ask', return_value='{"valid": false}') as ask:
+        with patch.object(wrapper, 'make_data') as make_data:
+            with pytest.raises(wrapper.InvalidProjectPrompt, match='try again'):
+                projects.create_project('hello there')
+    ask.assert_called_once()
+    make_data.assert_not_called()
     assert projects.PROJECTS == before
     assert projects.PROJECTS_BY_ID == registry
