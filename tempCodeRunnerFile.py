@@ -1,0 +1,22 @@
+from nicegui import ui
+
+from home import home_page
+from projectTemplate import build_project_page
+from projects import PROJECTS_BY_ID
+
+
+@ui.page('/')
+def index() -> None:
+    home_page()
+
+
+@ui.page('/project/{project_id}')
+def project(project_id: str) -> None:
+    selected = PROJECTS_BY_ID.get(project_id)
+    if selected is None:
+        ui.navigate.to('/')
+        return
+    build_project_page(selected)
+
+
+ui.run(title='SKEW')
