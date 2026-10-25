@@ -156,7 +156,7 @@ def build_project_page(project: Project) -> None:
         if (root._axisTooltipCleanup) root._axisTooltipCleanup();
         const explanations = {
             '.xtitle': ['Mean Squared Error', 'Closer to 0 means less error.'],
-            '.ytitle': ['Relative Density', 'Higher values mean more concentrated errors, not percentages.']
+            '.ytitle': ['Relative Density', 'Higher values mean more concentrated errors.']
         };
         const tooltip = document.createElement('div');
         tooltip.setAttribute('role', 'tooltip');
