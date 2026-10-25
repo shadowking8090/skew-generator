@@ -170,7 +170,7 @@ def setup() -> None:
             font-size: 11px; font-weight: 700 !important;
             letter-spacing: 0.08em; text-transform: uppercase;
         }}
-        :is(.ag-theme-quartz, .ag-theme-alpine, .ag-theme-balham, .ag-theme-material) .ag-header-cell-label {{ font-weight: 700 !important; }}
+        :is(.ag-theme-quartz, .ag-theme-alpine, .ag-theme-balham, .ag-theme-material) .ag-header-cell-label {{ font-weight: 700 !important; display: flex; align-items: center; }}
         :is(.ag-theme-quartz, .ag-theme-alpine, .ag-theme-balham, .ag-theme-material) .ag-cell {{ display: flex; align-items: center; }}
         :is(.ag-theme-quartz, .ag-theme-alpine, .ag-theme-balham, .ag-theme-material) :is(.ag-body-vertical-scroll, .ag-body-horizontal-scroll) {{ display: none !important; }}
         :is(.ag-theme-quartz, .ag-theme-alpine, .ag-theme-balham, .ag-theme-material) .ag-body-viewport {{ overflow: hidden !important; }}

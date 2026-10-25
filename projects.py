@@ -37,7 +37,7 @@ PROJECTS: list[Project] = [
     Project(
         id='left-right',
         title='Left and right accuracy',
-        subtitle='The error distribution of people deciding between left and right.',
+        subtitle='The error distribution of people deciding between left and right',
         load=_load_left_right,
         layout=_left_right_layout,
     ),

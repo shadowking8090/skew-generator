@@ -75,7 +75,6 @@ def download_menu(
                 ui.image(uri).props('fit=contain no-spinner no-transition').style(style)
             else:
                 ui.icon('download', size=f'{ICON_SIZE}px')
-            ui.tooltip('Download Data')
 
             with ui.menu().props('anchor="bottom left" self="top left"') as menu:
                 with ui.column().classes('gap-3 p-4').style(f'width:{MENU_WIDTH}px'):

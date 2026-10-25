@@ -41,12 +41,11 @@ def build_project_page(project: Project) -> None:
             showlegend=False,
             hoverinfo='skip' if d.name in not_hoverable else None,
         )
-        if d.name not in not_hoverable:
-            # Short, narrow tooltip so it fits inside the 240px-tall plot
-            meta = trace.meta if isinstance(trace.meta, dict) else {}
-            trace.hovertemplate = ('MSE %{x:.3f}<br>Density %{y:.3f}'
-                                   + ('<br>Mean %{meta.mean:.3f}' if 'mean' in meta else '')
-                                   + '<extra>%{fullData.name}</extra>')
+        # One tooltip for every always-shown curve (set even for not_hoverable ones: Plotly
+        # can still show a trace's own hovertemplate, which is what made Perfect Normal differ).
+        # The name is the bold first line of the same box, then identical MSE / Density lines.
+        trace.hovertemplate = ('<b>%{fullData.name}</b><br>'
+                               'MSE %{x:.3f}<br>Density %{y:.3f}<extra></extra>')
         fig.add_trace(trace)
 
     PREVIEW = len(always_data)
