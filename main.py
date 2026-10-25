@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from nicegui import ui
 
 from home import home_page
@@ -19,4 +21,4 @@ def project(project_id: str) -> None:
     build_project_page(selected)
 
 
-ui.run(title='SKEW')
+ui.run(title='SKEW', favicon=Path(__file__).parent / 'static' / 'favicon.png')
