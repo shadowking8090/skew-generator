@@ -227,11 +227,11 @@ def header(home_link: bool = True) -> None:
         if uri:
             logo = ui.image(uri).props('fit=contain no-spinner no-transition') \
                 .style(f'width:{width}px; height:{LOGO_HEIGHT}px') \
-                .classes('cursor-pointer' if home_link else '')
+                .classes('skew-header-logo cursor-pointer' if home_link else 'skew-header-logo')
             if home_link:
                 logo.on('click', lambda: ui.navigate.to('/'))   # logo = home
         else:   # fallback if the file is missing
-            logo = ui.label('SKEW').classes('text-white text-lg font-bold')
+            logo = ui.label('SKEW').classes('skew-header-logo text-white text-lg font-bold')
             if home_link:
                 logo.classes('cursor-pointer').on('click', lambda: ui.navigate.to('/'))
 
