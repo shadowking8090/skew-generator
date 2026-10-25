@@ -8,6 +8,7 @@ from sampleData import LAYOUT, sample_data
     
 from data import Data
 from transitions import animate_traces, hide_curve, rescale_curve, show_curve
+import theme
 
 # Sample data
 
@@ -38,15 +39,20 @@ for d in always_data:
         hoverinfo='skip' if d.name in NOT_HOVERABLE else None,
     ))
 
-PREVIEW = len(always_data)  # index of the hover-preview trace
-fig.add_trace(go.Scatter(
-    x=[], y=[],
-    name='Row preview',
-    mode='lines',
-    line=dict(color='orange', width=2, dash='dot'),
-    visible=False,
-    showlegend=False,
-))
+# A small pool of hover-preview traces. Each hover claims the next one, so the
+# row you just left can shrink away on its own trace while the new row grows in.
+PREVIEW = len(always_data)  # index of the first preview trace
+PREVIEW_SLOTS = 4
+for slot in range(PREVIEW_SLOTS):
+    fig.add_trace(go.Scatter(
+        x=[], y=[],
+        name=f'Row preview {slot}',
+        mode='lines',
+        line=dict(color=theme.PALETTE['preview'], width=2, dash='dot'),  # recolored per row on hover
+        visible=False,
+        showlegend=False,
+        hoverinfo='skip',
+    ))
 
 fig.update_layout(
     **LAYOUT,
@@ -62,39 +68,60 @@ fig.update_layout(
     yaxis_fixedrange=True,
 )
 
+# Palette and font on the figure layout and axes (trace colors come from sampleData.py)
+theme.style_figure(fig)
+
 # Hide the toolbar (zoom, pan, download, etc.) and the legend
 ui.add_css('.modebar-container, .js-plotly-plot .legend { display: none !important; }')
 
-app.add_static_files('/static', 'static')   # serve ./static at /static
+# Theme: serves ./static, loads the TTF font, colors the page and grid, then the header bar
+theme.setup()
+theme.header()
 
-ui.image('/static/logo.png').classes('w-32')   # w-32 = 8rem wide; try w-24, w-40, etc.
-
-plot = ui.plotly(fig).classes('w-full').style('max-width: 640px; height: 240px')
+plot = ui.plotly(fig).classes('w-full theme-card').style('max-width: 640px; height: 240px')
 
 
 # Hover state and callbacks
 
 hovered_name = None
+active_slot = None   # trace index of the preview for the hovered row
+next_slot = 0        # round-robin counter for claiming preview traces
 
 def update_preview(rescale_only: bool = False) -> None:
-    """Draw the hovered row's curve (orange, dotted) at the height it has in the
-    composite, whether or not the row is checked. Hidden when nothing is hovered."""
+    """Draw the hovered row's curve (dotted, in that row's color) at the height it
+    has in the composite, whether or not the row is checked.
+
+    The previous row's preview always shrinks away on its own trace, including
+    when the mouse goes straight from one row to another. Everything is sent
+    straight to the browser; plot.update() would resend the whole figure and
+    snap the composite / cancel its transition."""
+    global active_slot, next_slot
     data = data_by_name.get(hovered_name)
-    if data is None:
-        if rescale_only:
-            return
-        fig.data[PREVIEW].visible = False
-        hide_curve(plot, PREVIEW)            # shrinks to 0 height, then hides
+
+    if data is None:                          # nothing hovered: shrink the active preview
+        if not rescale_only and active_slot is not None:
+            fig.data[active_slot].visible = False
+            hide_curve(plot, active_slot)
+            active_slot = None
         return
+
     scale = scale_for(checked_names | {data.name})
     x, y = data.trace.x, scale * np.asarray(data.trace.y)
-    fig.data[PREVIEW].update(x=x, y=y, name=f'{data.name} preview', visible=True)
-    # Sent straight to the browser; plot.update() would resend the whole figure
-    # and snap the composite / cancel its transition.
-    if rescale_only:
-        rescale_curve(plot, PREVIEW, y)      # composite scale changed: no grow/shrink
-    else:
-        show_curve(plot, PREVIEW, x, y)      # hover: grows from 0 height
+
+    if rescale_only:                          # composite scale changed: no grow/shrink
+        if active_slot is not None:
+            fig.data[active_slot].update(y=y)
+            rescale_curve(plot, active_slot, y)
+        return
+
+    if active_slot is not None:               # moved to another row: old one shrinks
+        fig.data[active_slot].visible = False
+        hide_curve(plot, active_slot)
+    active_slot = PREVIEW + next_slot % PREVIEW_SLOTS
+    next_slot += 1
+    fig.data[active_slot].update(x=x, y=y, name=f'{data.name} preview',
+                                 line_color=data.color, visible=True)
+    show_curve(plot, active_slot, x, y, color=data.color)   # grows from 0 height
 
 def show_preview(event: events.GenericEventArguments) -> None:
     global hovered_name
@@ -126,7 +153,7 @@ def scale_for(names: set[str]) -> float:
 # Rebuilds the composite for the checked binomials
 def refresh_plot() -> None:
     """Composite = base + every checked binomial, rescaled so its peak is 1.
-    Binomials are never drawn as solid traces; they only appear (orange, dotted)
+    Binomials are never drawn as solid traces; they only appear (dotted, in the row's color)
     as the hover preview, which is redrawn here at the new scale."""
     old_y = np.asarray(fig.data[COMPOSITE].y)
     new_y = scale_for(checked_names) * composite_raw(checked_names)
@@ -137,21 +164,17 @@ def refresh_plot() -> None:
     animate_traces(plot, {COMPOSITE: new_y}, starts={COMPOSITE: old_y})
 
 
-# Adds or removes the row's binomial when checking
-async def on_row_checked(event: events.GenericEventArguments) -> None:
-    row = event.args.get('data') or {}
-    checked = event.args.get('selected')
-
-    if checked is None and event.args.get('rowId') is not None:
-        checked = await grid.run_row_method(event.args['rowId'], 'isSelected')
-    data = data_by_name.get(row.get('name'))
-    if data is None or checked is None:
+# Syncs the checked binomials with the grid's selection
+async def on_selection_changed(event: events.GenericEventArguments) -> None:
+    """Runs once per selection change, however many rows changed. Select-all and
+    deselect-all select every row in one go, so reading the whole selection here
+    gives one composite update (one smooth transition) instead of one per row."""
+    rows = await grid.get_selected_rows()
+    names = {row.get('name') for row in rows} & data_by_name.keys()
+    if names == checked_names:
         return
-
-    if checked:
-        checked_names.add(data.name)
-    else:
-        checked_names.discard(data.name)
+    checked_names.clear()
+    checked_names.update(names)
     refresh_plot()
 
 def add_data(item: Data) -> None:
@@ -171,21 +194,31 @@ def add_data(item: Data) -> None:
     go.Scatter(item.trace, name=item.name, line_color=item.color)
     data_by_name[item.name] = item
     selectable_data.append(item)
-    grid.options['rowData'].append({'name': item.name})
+    grid.options['rowData'].append({'name': item.name, 'color': item.color})
     grid.update()
 
 
-# Data grid
+# Data grid. The first column is a color swatch matching the row's preview color.
+COLOR_SWATCH = '''params => {
+    const dot = document.createElement('span');
+    dot.style.cssText = 'display:inline-block; width:12px; height:12px; border-radius:50%; '
+        + 'vertical-align:middle; box-shadow:0 0 0 1px rgba(15,27,45,0.12); background:' + params.value;
+    return dot;
+}'''
+
 grid = ui.aggrid({
     'defaultColDef': {'flex': 1, 'minWidth': 100},
     'columnDefs': [
+        {'field': 'color', 'headerName': '', ':cellRenderer': COLOR_SWATCH,
+         'flex': 0, 'width': 48, 'minWidth': 48, 'maxWidth': 48,
+         'sortable': False, 'resizable': False, 'suppressMovable': True},
         {'field': 'name', 'headerName': 'Name'},
     ],
-    'rowData': [{'name': d.name} for d in selectable_data],
+    'rowData': [{'name': d.name, 'color': d.color} for d in selectable_data],
     'rowSelection': {'mode': 'multiRow'},
-}).classes('w-full').style('max-width: 640px; height: 210px')
+}).classes('w-full theme-card').style('max-width: 640px; height: 210px')
 
-grid.on('rowSelected', on_row_checked, ['data', 'selected', 'rowId'])
+grid.on('selectionChanged', on_selection_changed)
 grid.on('cellMouseOver', show_preview, ['data'])
 grid.on('mouseout', hide_preview, js_handler='''(event) => {
     const row = event.target.closest('.ag-row');
@@ -195,4 +228,4 @@ grid.on('mouseleave', hide_preview)
 
 # Start the app
 
-ui.run()
+ui.run(title='SKEW')
