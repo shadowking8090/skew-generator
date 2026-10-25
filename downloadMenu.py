@@ -4,7 +4,7 @@ Clicking the button opens a small menu: slide to choose how many samples to draw
 the current composite curve (100 to 10,000, in steps of 100), then download them as a
 CSV (see csv_export.py).
 
-    from download_menu import download_menu
+    from downloadMenu import download_menu
 
     download_menu(
         get_curve=lambda: (fig.data[COMPOSITE].x, fig.data[COMPOSITE].y),
@@ -63,7 +63,7 @@ def download_menu(
     # A fixed-position wrapper, so the button sits over the left end of the header
     # without changing the header's layout (the logo stays centered).
     with ui.element('div').style(
-        f'position:fixed; top:0; left:{INSET}px; height:{header_height}px; z-index:2100; '
+        f'position:fixed; top:0; right:{INSET}px; height:{header_height}px; z-index:2100; '
         'display:flex; align-items:center'
     ):
         with ui.button().props('flat round dense color=white') as button:
@@ -75,17 +75,17 @@ def download_menu(
                 ui.image(uri).props('fit=contain no-spinner no-transition').style(style)
             else:
                 ui.icon('download', size=f'{ICON_SIZE}px')
-            ui.tooltip('Download data')
+            ui.tooltip('Download Data')
 
             with ui.menu().props('anchor="bottom left" self="top left"') as menu:
                 with ui.column().classes('gap-3 p-4').style(f'width:{MENU_WIDTH}px'):
                     ui.label('Download data').style(_TITLE_STYLE)
                     summary = ui.label().style(_NOTE_STYLE)
                     with ui.row().classes('w-full items-baseline justify-between no-wrap gap-2'):
-                        ui.label('Number of samples').style(_NOTE_STYLE)
+                        ui.label('# of samples').style(_NOTE_STYLE)
                         count_label = ui.label().style(_TITLE_STYLE)
                     amount = ui.slider(min=MIN_COUNT, max=MAX_COUNT, step=STEP, value=DEFAULT_COUNT) \
-                        .props('snap label-color=primary').classes('w-full')
+                        .props('snap label-color=primary').classes('w-full').style('--q-primary: #0F1B2D; accent-color: #0F1B2D')
                     count_label.bind_text_from(amount, 'value', backward=lambda v: f'{_snap(v):,}')
                     with ui.row().classes('w-full justify-between no-wrap').style('margin-top:-8px'):
                         ui.label(f'{MIN_COUNT:,}').style(_NOTE_STYLE)
@@ -102,17 +102,15 @@ def download_menu(
                         try:
                             count = _snap(amount.value)   # always a multiple of STEP
                             x, y = get_curve()          # read now: the current curve
-                            download_csv(count, x, y,
-                                         selected_factors=sorted(get_factors()),
-                                         filename=f'skew_samples_{count}.csv')
+                            download_csv(count, x, y, filename=f'skew_samples_{count}.csv')
                         except ValueError as error:
                             ui.notify(str(error), type='negative')
                             return
                         menu.close()
                         ui.notify(f'Downloaded {count:,} samples', type='positive')
 
-                    ui.button('Download CSV', icon='download', on_click=lambda: download()) \
-                        .props('unelevated no-caps').classes('w-full')
+                    ui.button('Download CSV', on_click=lambda: download()) \
+                        .props('unelevated no-caps').classes('w-full').style('background-color: #0F1B2D !important; color: #FFFFFF !important;')
                     menu.on('before-show', lambda: refresh_summary())
                     refresh_summary()
     return button
