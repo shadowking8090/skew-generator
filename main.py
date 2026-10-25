@@ -78,7 +78,15 @@ ui.add_css('.modebar-container, .js-plotly-plot .legend { display: none !importa
 theme.setup()
 theme.header()
 
-plot = ui.plotly(fig).classes('w-full theme-card').style('max-width: 640px; height: 240px')
+# Everything below sits in one centered column. The plot and the table are the same width,
+# and the whole block is scaled to fit the window (theme.fit_to_screen).
+TITLE = 'left and right accuracy'.upper()
+SUBTITLE = 'what is love?'.upper()
+
+content = theme.fit_to_screen()
+with content:
+    theme.heading(TITLE, SUBTITLE)
+    plot = ui.plotly(fig).classes('theme-card').style(f'width: {theme.CONTENT_WIDTH}px; height: 240px')
 
 
 # Hover state and callbacks
@@ -206,17 +214,31 @@ COLOR_SWATCH = '''params => {
     return dot;
 }'''
 
-grid = ui.aggrid({
-    'defaultColDef': {'flex': 1, 'minWidth': 100},
-    'columnDefs': [
-        {'field': 'color', 'headerName': '', ':cellRenderer': COLOR_SWATCH,
-         'flex': 0, 'width': 48, 'minWidth': 48, 'maxWidth': 48,
-         'sortable': False, 'resizable': False, 'suppressMovable': True},
-        {'field': 'name', 'headerName': 'Name'},
-    ],
-    'rowData': [{'name': d.name, 'color': d.color} for d in selectable_data],
-    'rowSelection': {'mode': 'multiRow'},
-}).classes('w-full theme-card').style('max-width: 640px; height: 210px')
+# Fixed layout: every size below is in pixels, so the table never reflows.
+SELECT_W, SWATCH_W = 48, 48                                  # checkbox and color columns
+NAME_W = theme.CONTENT_WIDTH - 2 - SELECT_W - SWATCH_W       # 2 = the card's border
+GRID_ROW_H = GRID_HEADER_H = 40
+
+with content:
+    grid = ui.aggrid({
+        # No flex, resizing, sorting, reordering or header menus: columns keep their widths.
+        'defaultColDef': {'resizable': False, 'sortable': False, 'suppressMovable': True,
+                          'suppressHeaderMenuButton': True},
+        'columnDefs': [
+            {'field': 'color', 'headerName': '', ':cellRenderer': COLOR_SWATCH,
+             'width': SWATCH_W, 'minWidth': SWATCH_W, 'maxWidth': SWATCH_W},
+            {'field': 'name', 'headerName': 'Name', 'width': NAME_W},
+        ],
+        'selectionColumnDef': {'width': SELECT_W, 'minWidth': SELECT_W, 'maxWidth': SELECT_W,
+                               'resizable': False},
+        'rowData': [{'name': d.name, 'color': d.color} for d in selectable_data],
+        'rowSelection': {'mode': 'multiRow'},
+        'domLayout': 'autoHeight',       # as tall as its rows, so there is never a scrollbar
+        'rowHeight': GRID_ROW_H,
+        'headerHeight': GRID_HEADER_H,
+        'suppressCellFocus': True,
+        'suppressHorizontalScroll': True,
+    }).classes('theme-card').style(f'width: {theme.CONTENT_WIDTH}px; height: auto')
 
 grid.on('selectionChanged', on_selection_changed)
 grid.on('cellMouseOver', show_preview, ['data'])
