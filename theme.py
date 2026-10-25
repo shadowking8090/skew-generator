@@ -302,7 +302,9 @@ def fit_to_screen() -> ui.column:
             .style(f'width: {CONTENT_WIDTH}px')
 
 
-# Slider cell in the factor table. Emits window event 'factor-weight'.
+# Slider cell in the factor table. While dragging it emits 'factor-weight-live'
+# (the factor's own line follows the slider); on release it emits 'factor-weight'
+# (the composite updates once, when the person stops dragging).
 # Dragging within SNAP points of the row's default_weight clicks onto the default
 # (except at the very ends, so small defaults can still reach 1%).
 WEIGHT_SLIDER_JS = '''params => {
@@ -318,7 +320,8 @@ WEIGHT_SLIDER_JS = '''params => {
     if (params.data && params.data.color) slider.style.setProperty('--thumb', params.data.color);
     const SNAP = 2;
     const def = Math.round(Number(params.data && params.data.default_weight) * 100);
-    let last = Number(slider.value);
+    let last = Number(slider.value);   // last value shown while dragging
+    let sent = last;                   // last value sent to the graph
     const label = document.createElement('span');
     label.className = 'skew-weight-label';
     const sync = () => { label.textContent = slider.value + '%'; };
@@ -333,13 +336,20 @@ WEIGHT_SLIDER_JS = '''params => {
             slider.value = String(def);
         }
         sync();
-        if (value === last) return;   // held at the default: nothing new to send
+        if (value === last) return;   // held at the default: nothing changed
         if (value === def) {          // just latched: brief ring around the knob
             wrap.classList.add('skew-latch');
             clearTimeout(wrap._latchTimer);
             wrap._latchTimer = setTimeout(() => wrap.classList.remove('skew-latch'), 450);
         }
         last = value;
+        emitEvent('factor-weight-live', {name: params.data.name, weight: value / 100});
+    });
+    // Released: now update the graph, once.
+    slider.addEventListener('change', () => {
+        const value = Number(slider.value);
+        if (value === sent) return;
+        sent = value;
         const weight = value / 100;
         params.data.weight = weight;
         emitEvent('factor-weight', {name: params.data.name, weight: weight});

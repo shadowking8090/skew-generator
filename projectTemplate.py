@@ -336,11 +336,23 @@ def build_project_page(project: Project) -> None:
             return
         data.weight = clamp_weight(args.get('weight'), default=data.weight)
         if data.name in checked_names:
-            refresh_plot(duration=120)        # also rescales the hover preview
+            refresh_plot()                    # also rescales the hover preview
         elif data.name == hovered_name:
             update_preview(rescale_only=True)  # unchecked but hovered: preview follows the slider
 
+    def on_weight_live(event: events.GenericEventArguments) -> None:
+        """While dragging: only the factor's own line follows the slider;
+        the composite waits for on_weight_changed (slider released)."""
+        args = event.args if isinstance(event.args, dict) else {}
+        data = data_by_name.get(args.get('name'))
+        if data is None:
+            return
+        data.weight = clamp_weight(args.get('weight'), default=data.weight)
+        if data.name == hovered_name:
+            update_preview(rescale_only=True)
+
     ui.on('factor-weight', on_weight_changed)
+    ui.on('factor-weight-live', on_weight_live)
 
     with content:
         grid = ui.aggrid({
