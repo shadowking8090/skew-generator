@@ -2,7 +2,7 @@
 
 import numpy as np
 import plotly.graph_objects as go
-from nicegui import app, events, ui
+from nicegui import app, events, run, ui
 
 from sampleData import LAYOUT, sample_data
     
@@ -10,6 +10,7 @@ from data import Data
 from transitions import animate_traces, hide_curve, rescale_curve, show_curve
 import theme
 from downloadMenu import download_menu
+from wrapper import ask
 
 # Sample data
 
@@ -256,6 +257,26 @@ grid.on('mouseout', hide_preview, js_handler='''(event) => {
     if (row && !row.contains(event.relatedTarget)) emit();
 }''')
 grid.on('mouseleave', hide_preview)
+
+# Text box: sends what the user types to the Cloudflare Worker (wrapper.ask)
+# and shows the reply below it. The reply is also printed in the terminal.
+
+async def send_prompt() -> None:
+    prompt = prompt_box.value.strip()
+    if not prompt:
+        return
+    reply_label.text = 'Waiting for reply...'
+    try:
+        reply = await run.io_bound(ask, prompt)
+    except Exception as e:
+        reply = f'Error: {e}'
+    reply_label.text = reply
+    print('Gemini:', reply)
+
+with content:
+    prompt_box = ui.input('Ask something').on('keydown.enter', send_prompt)
+    ui.button('Send', on_click=send_prompt)
+    reply_label = ui.label()
 
 # Start the app
 
