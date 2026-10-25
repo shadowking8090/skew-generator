@@ -35,21 +35,12 @@ CSS = f'''
     .project-card:hover {{ border-color: {P['accent']}; transform: translateY(-2px); }}
     .project-band-title {{
         font-family: var(--font-heading);
-        font-size: 22px; font-weight: 700; line-height: 1.2;
+        font-size: 22px; font-weight: 700; line-height: 1;
         letter-spacing: -0.01em; color: {P['ink']};
-    }}
-    .project-band-heading {{
-        font-family: var(--font-heading);
-        font-size: 16px; font-weight: 700; letter-spacing: 0.06em; color: {P['ink']};
     }}
     .project-band-subheading {{
         font-family: var(--font-subheading);
         font-size: 14px; font-weight: 400; line-height: 1.4; color: {P['muted']};
-    }}
-    .project-card-title {{
-        font-family: var(--font-heading);
-        font-size: 18px; font-weight: 700; line-height: 1.2;
-        letter-spacing: -0.01em; color: {P['ink']};
     }}
     .project-card-text {{
         font-family: var(--font-subheading);
@@ -127,7 +118,7 @@ def home_page() -> None:
     with ui.column().classes('new-band w-full items-center') \
             .style(f'padding: 32px 16px 24px'):
         with ui.column().classes('w-full gap-3').style(f'max-width: {PAGE_WIDTH}px'):
-            ui.label('PROJECTS').classes('project-band-heading')
+            ui.label('PROJECTS').classes('project-band-title')
             ui.label('Something about projects that is very profound.'.upper()).classes('project-band-subheading')
 
             # Combined long button with the + sign and CREATE PROJECT text, controlling a dropdown
