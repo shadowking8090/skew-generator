@@ -1,18 +1,20 @@
-
 """Home screen with project creation button and project preview cards."""
 
 import base64
-from typing import Callable
+import inspect
+from typing import Any, Callable
 
 import numpy as np
-from nicegui import ui
+from nicegui import run, ui
 
 import theme
 from projects import PROJECTS, Project
+from wrapper import generate_project, project_error_message
 
 PAGE_WIDTH = 960
 CARD_MIN_WIDTH = 280
 PREVIEW_HEIGHT = 130
+ERROR_TIMEOUT_MS = 10_000  # how long error toasts stay up
 
 P = theme.PALETTE
 
@@ -32,6 +34,16 @@ CSS = f'''
         border-color: {P['accent']};
         transform: translateY(-2px);
     }}
+    /* Ignore the cards while the create-project menu is open. */
+    body.create-menu-open .project-card {{
+        pointer-events: none;
+    }}
+
+    /* White text on the toast's Dismiss button. */
+    .q-notification__actions .q-btn {{
+        color: #fff !important;
+    }}
+
     .project-band-title {{
         font-family: var(--font-heading);
         font-size: 22px; font-weight: 700; line-height: 1;
@@ -208,11 +220,12 @@ def _preview_for(project: Project) -> str | None:
 
 # Page
 
-def home_page(on_project_submit: Callable[[str], None] | None = None) -> None:
+def home_page(on_project_submit: Callable[..., Any] | None = None) -> None:
     """Render the home page.
 
-    Supply on_project_submit(details) to handle new project requests.
-    Without it, submission is acknowledged but no project is created.
+    Supply on_project_submit(details, title, subtitle, curves) to receive each
+    generated project (sync or async). Without it, the project is generated
+    but not saved anywhere.
     """
 
     theme.setup()
@@ -242,6 +255,8 @@ def home_page(on_project_submit: Callable[[str], None] | None = None) -> None:
                     ):
 
                 with ui.menu() as menu:
+                    menu.on('show', js_handler="() => document.body.classList.add('create-menu-open')")
+                    menu.on('hide', js_handler="() => document.body.classList.remove('create-menu-open')")
 
                     with ui.column().classes('p-3 gap-2').style('width: 300px'):
 
@@ -253,35 +268,68 @@ def home_page(on_project_submit: Callable[[str], None] | None = None) -> None:
                             'w-full create-project-textarea'
                         )
 
-                        # Real submit handler.
-                        def submit_project() -> None:
+                        busy = {'value': False}
+
+                        def set_busy(on: bool) -> None:
+                            busy['value'] = on
+                            if on:
+                                submit_btn.props('loading')
+                            else:
+                                submit_btn.props(remove='loading')
+                            submit_btn.set_enabled(not on)
+                            textbox.set_enabled(not on)
+                            # Keep the menu open while the request runs.
+                            if on:
+                                menu.props('persistent')
+                            else:
+                                menu.props(remove='persistent')
+
+                        def show_error(message: str) -> None:
+                            ui.notify(
+                                message,
+                                type='negative',
+                                position='top',
+                                multi_line=True,
+                                close_button='Dismiss',
+                                timeout=ERROR_TIMEOUT_MS,
+                            )
+
+                        async def submit_project() -> None:
+                            if busy['value']:
+                                return
+
                             details = (textbox.value or '').strip()
 
                             if not details:
-                                ui.notify(
-                                    'Please enter project details.',
-                                    type='warning',
-                                )
+                                show_error('Please enter project details.')
                                 return
 
-                            if on_project_submit is not None:
-                                on_project_submit(details)
-                                ui.notify(
-                                    'Project request submitted.',
-                                    type='positive',
-                                )
-                            else:
-                                print(f'[home] Project request submitted: {details}')
-                                ui.notify(
-                                    'Submitted (project creation is not connected yet).',
-                                    type='info',
+                            set_busy(True)
+                            try:
+                                # Blocking HTTP call: run off the UI event loop.
+                                title, subtitle, curves = await run.io_bound(
+                                    generate_project, details
                                 )
 
+                                if on_project_submit is not None:
+                                    result = on_project_submit(details, title, subtitle, curves)
+                                    if inspect.isawaitable(result):
+                                        await result
+                                else:
+                                    print(f'[home] Generated project {title!r}: {subtitle!r}')
+                            except Exception as e:
+                                print(f'[home] project creation failed: {e!r}')
+                                set_busy(False)
+                                show_error(project_error_message(e))
+                                return  # keep the text so it can be edited and retried
+
+                            set_busy(False)
+                            ui.notify(f'Project "{title}" created.', type='positive')
                             textbox.set_value('')
                             menu.close()
 
-                        ui.button(
-                            'Submit',
+                        submit_btn = ui.button(
+                            'SUBMIT',
                             on_click=submit_project,
                         ).props(
                             'unelevated no-caps'
