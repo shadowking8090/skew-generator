@@ -172,6 +172,33 @@ def setup() -> None:
         }}
         :is(.ag-theme-quartz, .ag-theme-alpine, .ag-theme-balham, .ag-theme-material) .ag-header-cell-label {{ font-weight: 700 !important; display: flex; align-items: center; }}
         :is(.ag-theme-quartz, .ag-theme-alpine, .ag-theme-balham, .ag-theme-material) .ag-cell {{ display: flex; align-items: center; }}
+        .skew-weight {{
+            display: flex; align-items: center; gap: 8px; width: 100%;
+        }}
+        /* Slider: same light grey track on every row; the knob uses the row's color (--thumb). */
+        .skew-weight input[type=range] {{
+            flex: 1; min-width: 0; height: 16px; margin: 0;
+            -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer;
+        }}
+        .skew-weight input[type=range]::-webkit-slider-runnable-track {{
+            height: 6px; border-radius: 3px; background: #e5e7eb;
+        }}
+        .skew-weight input[type=range]::-moz-range-track {{
+            height: 6px; border-radius: 3px; background: #e5e7eb;
+        }}
+        .skew-weight input[type=range]::-webkit-slider-thumb {{
+            -webkit-appearance: none; appearance: none; margin-top: -5px;
+            width: 16px; height: 16px; border-radius: 50%; border: none;
+            background: var(--thumb, {p['accent']});
+        }}
+        .skew-weight input[type=range]::-moz-range-thumb {{
+            width: 16px; height: 16px; border-radius: 50%; border: none;
+            background: var(--thumb, {p['accent']});
+        }}
+        .skew-weight-label {{
+            width: 38px; text-align: right; font-variant-numeric: tabular-nums;
+            color: {p['text']}; font-size: 13px;
+        }}
         :is(.ag-theme-quartz, .ag-theme-alpine, .ag-theme-balham, .ag-theme-material) :is(.ag-body-vertical-scroll, .ag-body-horizontal-scroll) {{ display: none !important; }}
         :is(.ag-theme-quartz, .ag-theme-alpine, .ag-theme-balham, .ag-theme-material) .ag-body-viewport {{ overflow: hidden !important; }}
 
@@ -262,6 +289,48 @@ def fit_to_screen() -> ui.column:
     with ui.column().classes('fit-outer w-full items-center gap-0'):
         return ui.column().classes('fit-inner items-center gap-4') \
             .style(f'width: {CONTENT_WIDTH}px')
+
+
+# Slider cell in the factor table. Emits window event 'factor-weight'.
+# Dragging within SNAP points of the row's default_weight clicks onto the default
+# (except at the very ends, so small defaults can still reach 1%).
+WEIGHT_SLIDER_JS = '''params => {
+    const wrap = document.createElement('div');
+    wrap.className = 'skew-weight';
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.min = '1';
+    slider.max = '100';
+    slider.step = '1';
+    const pct = Math.round(Number(params.value) * 100);
+    slider.value = String(Number.isFinite(pct) && pct >= 1 ? Math.min(100, pct) : 20);
+    if (params.data && params.data.color) slider.style.setProperty('--thumb', params.data.color);
+    const SNAP = 2;
+    const def = Math.round(Number(params.data && params.data.default_weight) * 100);
+    let last = Number(slider.value);
+    const label = document.createElement('span');
+    label.className = 'skew-weight-label';
+    const sync = () => { label.textContent = slider.value + '%'; };
+    sync();
+    const stop = event => event.stopPropagation();
+    ['pointerdown', 'mousedown', 'click', 'dblclick', 'touchstart'].forEach(
+        type => slider.addEventListener(type, stop));
+    slider.addEventListener('input', () => {
+        let value = Number(slider.value);
+        if (Number.isFinite(def) && value !== 1 && value !== 100 && Math.abs(value - def) <= SNAP) {
+            value = def;
+            slider.value = String(def);
+        }
+        sync();
+        if (value === last) return;   // held at the default: nothing new to send
+        last = value;
+        const weight = value / 100;
+        params.data.weight = weight;
+        emitEvent('factor-weight', {name: params.data.name, weight: weight});
+    });
+    wrap.append(slider, label);
+    return wrap;
+}'''
 
 
 def heading(title: str, subtitle: str | None = None, *, align: str = 'center') -> None:

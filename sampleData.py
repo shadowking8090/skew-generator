@@ -41,19 +41,24 @@ _integrate = np.trapezoid if hasattr(np, "trapezoid") else np.trapz
 FACTOR_PARAMETERS = {
     "vdh_women_fu": dict(name="Perspective bias", color=SERIES_COLORS[0],
                          alpha=0.533565631451, beta=3.6677385532,
-                         shift=0.35, extra_sd=0.08),
+                         shift=0.35, extra_sd=0.08, weight=0.51,
+                         weight_source="About 51% of adults are women"),
     "vdh_women_bc": dict(name="Hand-layout bias", color=SERIES_COLORS[1],
                          alpha=0.240250945708, beta=2.72581011242,
-                         shift=0.40, extra_sd=0.08),
+                         shift=0.40, extra_sd=0.08, weight=0.20,
+                         weight_source="Assumed share of crossed-arm trials"),
     "age_old": dict(name="Age bias", color=SERIES_COLORS[2],
                     alpha=0.908378947368, beta=2.33583157895,
-                    shift=0.20, extra_sd=0.16),
+                    shift=0.20, extra_sd=0.16, weight=0.07,
+                    weight_source="About 7% of U.S. adults are 75+"),
     "command_complex": dict(name="Instruction-complexity bias", color=SERIES_COLORS[3],
                             alpha=0.583128559188, beta=7.0845711014,
-                            shift=0.41, extra_sd=0.08),
+                            shift=0.41, extra_sd=0.08, weight=0.25,
+                            weight_source="Assumed share of complex-command trials"),
     "hand_stroke": dict(name="Stroke-related bias", color=SERIES_COLORS[4],
                         alpha=3.62, beta=16.38,
-                        shift=0.31, extra_sd=0.08),
+                        shift=0.31, extra_sd=0.08, weight=0.03,
+                        weight_source="About 3% of U.S. adults are stroke survivors"),
 }
 _NAME_TO_ID = {p["name"]: key for key, p in FACTOR_PARAMETERS.items()}
 # Accept older table labels too, without changing graph.py.
@@ -299,10 +304,20 @@ def binom(trials, rate, x=x, height=0.9, bw=None, sigma=None):
     return height * y / y.max()
 
 
-def make_data(y, name, color, width=2, dash=None, fill=None, *, metadata=None):
+def make_data(y, name, color, width=2, dash=None, fill=None, *,
+              metadata=None, weight=None, weight_source=''):
     values = np.asarray(y, dtype=float)
     if values.shape != x.shape or not np.all(np.isfinite(values)) or np.any(values < 0):
         raise ValueError("Data must contain 601 finite, nonnegative values")
+    if metadata and weight is None and metadata.get('weight') is not None:
+        weight = metadata['weight']
+    if metadata and not weight_source:
+        weight_source = metadata.get('weight_source') or ''
+    if weight is not None:
+        metadata = dict(metadata or {}, weight=float(weight),
+                        weight_source=weight_source)
+    share_hover = ("<br>Population share: %{meta.weight:.0%}"
+                   if metadata and metadata.get('weight') is not None else "")
     trace = go.Scatter(
         x=x, y=values, name=name, mode="lines",
         line=dict(color=color, width=width, **({"dash": dash} if dash else {})),
@@ -310,9 +325,12 @@ def make_data(y, name, color, width=2, dash=None, fill=None, *, metadata=None):
         **({"meta": metadata} if metadata is not None else {}),
         hovertemplate=("Mean squared error: %{x:.3f}<br>Relative density: %{y:.4f}"
                        + ("<br>Approximate mean: %{meta.mean:.3f}" if metadata else "")
+                       + share_hover
                        + "<extra>%{fullData.name}</extra>"),
     )
-    return Data(trace=trace, name=name, color=color)
+    return Data(trace=trace, name=name, color=color,
+                weight=0.2 if weight is None else weight,
+                weight_source=weight_source)
 
 
 # Arrays required by Plotly are computed from functions, never embedded data.
@@ -328,9 +346,13 @@ sample_data = [
     make_data(perfect_normal(x), "Perfect Normal", PALETTE["ink"], width=2, dash="dot"),
 ]
 for key, parameters in zip(FACTOR_PARAMETERS, RESEARCH_PARAMETERS):
-    sample_data.append(make_data(peak_scale(SYNTHETIC_DENSITIES[key]),
-                                 parameters["name"], parameters["color"],
-                                 metadata=parameters))
+    sample_data.append(make_data(
+        peak_scale(SYNTHETIC_DENSITIES[key]),
+        parameters["name"], parameters["color"],
+        metadata=parameters,
+        weight=FACTOR_PARAMETERS[key]["weight"],
+        weight_source=FACTOR_PARAMETERS[key]["weight_source"],
+    ))
 
 
 def preview():
