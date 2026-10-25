@@ -38,8 +38,8 @@ def test_creation_registers_defaults_and_five_independent_parameters():
         data[2].name = 'Changed'
         assert project.load()[2].name == 'Factor 0'
         assert project.layout()['xaxis']['range'] == [0, 1]
-        assert project.layout()['xaxis_title'] == 'Mean squared error'
-        assert project.layout()['yaxis_title'] == 'Relative density'
+        assert project.layout()['xaxis_title'] == 'Mean Squared Error'
+        assert project.layout()['yaxis_title'] == 'Relative Density'
     finally:
         projects.PROJECTS.remove(project)
         del projects.PROJECTS_BY_ID[project.id]

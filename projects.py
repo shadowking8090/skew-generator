@@ -26,6 +26,8 @@ class Project:
     always_shown: tuple[str, ...] = ('Composite', 'Perfect Normal')   # plotted, never listed
     not_hoverable: tuple[str, ...] = ('Perfect Normal',)
     preview: str | None = None                # optional image inside static/, e.g. 'previews/left-right.png'
+    extra_parameters: list[Data] = field(default_factory=list)
+    removed_parameters: set[str] = field(default_factory=set)
 
 
 # Loaders import lazily, so opening the home screen doesn't compute every project's curves.
@@ -87,12 +89,20 @@ def _project_slug(title: str) -> str:
 def create_project(description: str) -> Project:
     """Generate five parameters and register a project only after validation."""
     from wrapper import generate_project
-    from sampleData import sample_data
 
     description = description.strip()
     if not description:
         raise ValueError('Describe the new project first')
     title, subtitle, parameters = generate_project(description)
+    return register_project(title, subtitle, parameters)
+
+
+def register_project(title: str, subtitle: str, parameters: list[Data]) -> Project:
+    """Save already-generated curves without making another API call."""
+    from sampleData import sample_data
+
+    if len(parameters) != 5 or not all(isinstance(item, Data) for item in parameters):
+        raise ValueError('A project needs exactly five parameter curves')
     defaults = deepcopy([d for d in sample_data
                          if d.name in {'Composite', 'Perfect Normal'}])
     data = defaults + parameters

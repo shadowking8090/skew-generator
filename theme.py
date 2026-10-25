@@ -101,6 +101,7 @@ def setup() -> None:
     p = PALETTE
     app.add_static_files('/static', str(STATIC_DIR))
     ui.colors(primary=p['accent'])
+    ui.add_css(CREATION_CONTROLS_CSS)
 
     ui.add_css(_font_face_css())
     ui.add_css(f'''
@@ -384,3 +385,44 @@ def style_figure(fig) -> None:
             gridcolor=p['border'], zerolinecolor=p['border'], linecolor=p['border'],
             tickfont=dict(color=p['muted']), title_font=dict(color=p['muted']),
         )
+
+
+# Shared prompt controls for project and parameter creation.
+CREATION_CONTROLS_CSS = '''
+    .action-btn {
+        font-family: var(--font-heading) !important;
+        letter-spacing: 0.04em;
+    }
+
+    /* Center the plus icon in the left rounded end. */
+    .create-project-btn {
+        height: 40px !important;
+        padding: 0 20px 0 8px !important;
+        font-weight: 600 !important;
+        border-radius: 9999px !important;
+    }
+    .create-project-btn .q-btn__content {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+    }
+    .create-project-btn .q-icon.on-left {
+        font-size: 24px !important;
+        margin-left: 0 !important;
+        margin-right: 10px !important;
+    }
+
+    /* Fixed two-line textarea. */
+    .create-project-textarea textarea {
+        height: 48px !important;
+        min-height: 48px !important;
+        max-height: 48px !important;
+        box-sizing: border-box !important;
+        padding-top: 4px !important;
+        padding-bottom: 4px !important;
+        line-height: 20px !important;
+        resize: none !important;
+        overflow-y: hidden !important;
+        overflow-x: hidden !important;
+    }
+'''

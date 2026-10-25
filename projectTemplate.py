@@ -5,6 +5,7 @@ checked rows, hover slots) lives inside the call, so each visit, and each
 project, gets its own independent copy."""
 
 import json
+import logging
 from copy import deepcopy
 
 import numpy as np
@@ -15,16 +16,18 @@ import theme
 from data import Data, clamp_weight, factor_contribution, weighted_composite
 from downloadMenu import download_menu
 from projects import Project
+from palette import SERIES_COLORS
 from homeButton import home_button
 from transitions import animate_traces, hide_curve, rescale_curve, show_curve
-from wrapper import ask
+from wrapper import generate_data, project_error_message
 
 
 def build_project_page(project: Project) -> None:
     # Data
 
     # Own copy per visit, so slider weights never leak into other visits or users.
-    sample_data = deepcopy(project.load())
+    sample_data = deepcopy([item for item in project.load() + project.extra_parameters
+                            if item.name not in project.removed_parameters])
     always_shown = set(project.always_shown)
     not_hoverable = set(project.not_hoverable)
 
@@ -94,6 +97,25 @@ def build_project_page(project: Project) -> None:
         .skew-project-grid .ag-header-cell-text {
             font-weight: 700 !important;
             text-transform: uppercase;
+        }
+        .parameter-remove {
+            border: none; background: transparent; color: #5B6B7F;
+            width: 24px; height: 24px; padding: 0; flex-shrink: 0;
+            border-radius: 50%; cursor: pointer; font-size: 19px; line-height: 1;
+            opacity: 0.25; transition: opacity 150ms ease, background-color 150ms ease;
+        }
+        .parameter-remove:hover, .parameter-remove:focus-visible {
+            color: #B42318; background: #FEE4E2;
+            opacity: 1;
+        }
+        .skew-project-grid .parameter-remove-cell {
+            padding: 0 !important;
+            justify-content: center;
+        }
+        .skew-project-grid .parameter-remove-cell .ag-cell-wrapper,
+        .skew-project-grid .parameter-remove-cell .ag-cell-value {
+            width: 100%; display: flex; justify-content: center;
+            overflow: visible; text-overflow: clip;
         }
         .skew-project-plot .xtitle, .skew-project-plot .ytitle {
             font-weight: 700 !important;
@@ -310,6 +332,8 @@ def build_project_page(project: Project) -> None:
         go.Scatter(item.trace, name=item.name, line_color=item.color)
         data_by_name[item.name] = item
         selectable_data.append(item)
+        default_weights[item.name] = item.weight
+        project.extra_parameters.append(deepcopy(item))
         grid.options['rowData'].append({
             'name': item.name, 'color': item.color, 'weight': item.weight,
             'default_weight': item.weight, 'weight_source': item.weight_source,
@@ -325,8 +349,24 @@ def build_project_page(project: Project) -> None:
         return dot;
     }'''
 
-    SELECT_W, SWATCH_W, WEIGHT_W = 48, 48, 168
-    NAME_W = theme.CONTENT_WIDTH - 2 - SELECT_W - SWATCH_W - WEIGHT_W
+    PARAMETER_REMOVE = '''params => {
+        const remove = document.createElement('button');
+        remove.textContent = '\u00d7';
+        remove.type = 'button';
+        remove.title = 'Remove ' + params.data.name;
+        remove.setAttribute('aria-label', remove.title);
+        remove.className = 'parameter-remove';
+        ['pointerdown', 'mousedown', 'dblclick', 'touchstart', 'keydown'].forEach(
+            type => remove.addEventListener(type, event => event.stopPropagation()));
+        remove.addEventListener('click', event => {
+            event.stopPropagation();
+            emitEvent('factor-remove', {name: params.data.name});
+        });
+        return remove;
+    }'''
+
+    SELECT_W, SWATCH_W, WEIGHT_W, REMOVE_W = 48, 48, 168, 48
+    NAME_W = theme.CONTENT_WIDTH - 2 - SELECT_W - SWATCH_W - WEIGHT_W - REMOVE_W
     GRID_ROW_H = GRID_HEADER_H = 40
 
     def on_weight_changed(event: events.GenericEventArguments) -> None:
@@ -351,6 +391,27 @@ def build_project_page(project: Project) -> None:
         if data.name == hovered_name:
             update_preview(rescale_only=True)
 
+    def remove_parameter(event: events.GenericEventArguments) -> None:
+        args = event.args if isinstance(event.args, dict) else {}
+        names = {args.get('name')} & data_by_name.keys()
+        if not names:
+            return
+        if hovered_name in names:
+            hide_preview()
+        checked_names.difference_update(names)
+        for name in names:
+            data_by_name.pop(name, None)
+            default_weights.pop(name, None)
+        selectable_data[:] = [item for item in selectable_data if item.name not in names]
+        project.extra_parameters[:] = [item for item in project.extra_parameters if item.name not in names]
+        project.removed_parameters.update(names)
+        grid.options['rowData'] = [row for row in grid.options['rowData'] if row['name'] not in names]
+        grid.update()
+        refresh_plot()
+        ui.notify(f'Removed {len(names)} parameter(s).', type='positive')
+
+
+    ui.on('factor-remove', remove_parameter)
     ui.on('factor-weight', on_weight_changed)
     ui.on('factor-weight-live', on_weight_live)
 
@@ -365,6 +426,10 @@ def build_project_page(project: Project) -> None:
                 {'field': 'weight', 'headerName': 'WEIGHT', 'width': WEIGHT_W,
                  'minWidth': WEIGHT_W, 'maxWidth': WEIGHT_W,
                  ':cellRenderer': theme.WEIGHT_SLIDER_JS},
+                {'colId': 'remove', 'headerName': '', 'width': REMOVE_W,
+                 'minWidth': REMOVE_W, 'maxWidth': REMOVE_W,
+                 'cellClass': 'parameter-remove-cell',
+                 ':cellRenderer': PARAMETER_REMOVE},
             ],
             'selectionColumnDef': {'width': SELECT_W, 'minWidth': SELECT_W, 'maxWidth': SELECT_W,
                                    'resizable': False},
@@ -386,3 +451,62 @@ def build_project_page(project: Project) -> None:
         if (row && !row.contains(event.relatedTarget)) emit();
     }''')
     grid.on('mouseleave', hide_preview)
+
+    with content, ui.row().classes('w-full items-center gap-3'):
+        with ui.button('ADD PARAMETER', icon='add').props('unelevated no-caps') \
+                .classes('action-btn create-project-btn self-start').style(
+                    f'background-color: {theme.PALETTE["ink"]} !important; '
+                    f'color: {theme.LOGO_COLOR} !important;'):
+            with ui.menu() as parameter_menu:
+                with ui.column().classes('p-3 gap-2').style('width: 300px'):
+                    parameter_prompt = ui.textarea(placeholder='Describe a new parameter...') \
+                        .props('outlined rows=2').classes('w-full create-project-textarea')
+
+                    async def submit_parameter() -> None:
+                        if not parameter_submit.enabled:
+                            return
+                        description = (parameter_prompt.value or '').strip()
+                        if not description:
+                            ui.notify('Describe the parameter you want to add.', type='negative')
+                            return
+                        parameter_submit.disable().props('loading')
+                        parameter_prompt.disable()
+                        parameter_menu.props('persistent')
+                        try:
+                            prompt = (
+                                f'Project: {project.title}. {project.subtitle}\n'
+                                f'Existing parameters: {", ".join(data_by_name)}\n'
+                                'Create one new parameter related to the user description '
+                                'for this project, using the same normalized MSE scale.\n'
+                                f'User description: {description}'
+                            )
+                            items = await run.io_bound(generate_data, prompt, count=1)
+                            item = items[0]
+                            name = item.name
+                            suffix = 2
+                            used = set(data_by_name) | always_shown | {
+                                d.name for d in project.load() + project.extra_parameters}
+                            while item.name in used:
+                                item.name = f'{name} ({suffix})'
+                                suffix += 1
+                            item.color = SERIES_COLORS[len(selectable_data) % len(SERIES_COLORS)]
+                            item.trace.update(name=item.name, line_color=item.color)
+                            add_data(item)
+                        except Exception as error:
+                            logging.getLogger(__name__).exception('Parameter creation failed')
+                            ui.notify(project_error_message(error), type='negative',
+                                      close_button='Dismiss', timeout=10_000)
+                            return
+                        finally:
+                            parameter_submit.enable().props(remove='loading')
+                            parameter_prompt.enable()
+                            parameter_menu.props(remove='persistent')
+                        parameter_prompt.set_value('')
+                        parameter_menu.close()
+                        ui.notify(f'Added {item.name}. Select it to include it in the graph.', type='positive')
+
+                    parameter_submit = ui.button('ADD', on_click=submit_parameter) \
+                        .props('unelevated no-caps').classes('action-btn w-full').style(
+                            f'background-color: {theme.PALETTE["ink"]} !important; '
+                            f'color: {theme.LOGO_COLOR} !important;')
+

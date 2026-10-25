@@ -2,13 +2,14 @@
 
 import base64
 import inspect
+import logging
 from typing import Any, Callable
 
 import numpy as np
 from nicegui import run, ui
 
 import theme
-from projects import PROJECTS, Project
+from projects import PROJECTS, Project, register_project
 from wrapper import generate_project, project_error_message
 
 PAGE_WIDTH = 960
@@ -17,6 +18,7 @@ PREVIEW_HEIGHT = 130
 ERROR_TIMEOUT_MS = 10_000  # how long error toasts stay up
 
 P = theme.PALETTE
+logger = logging.getLogger(__name__)
 
 CSS = f'''
     .nicegui-content {{ padding: 0 !important; gap: 0 !important; }}
@@ -67,42 +69,6 @@ CSS = f'''
         font-family: var(--font-page);
         font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
         text-transform: uppercase; color: {P['muted']};
-    }}
-    .action-btn {{
-        font-family: var(--font-heading) !important;
-        letter-spacing: 0.04em;
-    }}
-
-    /* Center the plus icon in the left rounded end. */
-    .create-project-btn {{
-        height: 40px !important;
-        padding: 0 20px 0 8px !important;
-        font-weight: 600 !important;
-        border-radius: 9999px !important;
-    }}
-    .create-project-btn .q-btn__content {{
-        display: flex;
-        align-items: center;
-        justify-content: flex-start;
-    }}
-    .create-project-btn .q-icon.on-left {{
-        font-size: 24px !important;
-        margin-left: 0 !important;
-        margin-right: 10px !important;
-    }}
-
-    /* Fixed two-line textarea. */
-    .create-project-textarea textarea {{
-        height: 48px !important;
-        min-height: 48px !important;
-        max-height: 48px !important;
-        box-sizing: border-box !important;
-        padding-top: 4px !important;
-        padding-bottom: 4px !important;
-        line-height: 20px !important;
-        resize: none !important;
-        overflow-y: hidden !important;
-        overflow-x: hidden !important;
     }}
 '''
 
@@ -225,7 +191,7 @@ def home_page(on_project_submit: Callable[..., Any] | None = None) -> None:
 
     Supply on_project_submit(details, title, subtitle, curves) to receive each
     generated project (sync or async). Without it, the project is generated
-    but not saved anywhere.
+    and opened directly when no callback is supplied.
     """
 
     theme.setup()
@@ -316,9 +282,10 @@ def home_page(on_project_submit: Callable[..., Any] | None = None) -> None:
                                     if inspect.isawaitable(result):
                                         await result
                                 else:
-                                    print(f'[home] Generated project {title!r}: {subtitle!r}')
+                                    project = register_project(title, subtitle, curves)
+                                    ui.navigate.to(f'/project/{project.id}')
                             except Exception as e:
-                                print(f'[home] project creation failed: {e!r}')
+                                logger.exception('Project creation failed')
                                 set_busy(False)
                                 show_error(project_error_message(e))
                                 return  # keep the text so it can be edited and retried
