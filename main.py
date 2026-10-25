@@ -9,6 +9,7 @@ from sampleData import LAYOUT, sample_data
 from data import Data
 from transitions import animate_traces, hide_curve, rescale_curve, show_curve
 import theme
+from downloadMenu import download_menu
 
 # Sample data
 
@@ -77,6 +78,14 @@ ui.add_css('.modebar-container, .js-plotly-plot .legend { display: none !importa
 # Theme: serves ./static, loads the TTF font, colors the page and grid, then the header bar
 theme.setup()
 theme.header()
+
+# Download button (top left) with a menu for exporting samples of the current composite as CSV.
+# Both callbacks run when Download is clicked, so each export uses the current selection.
+download_menu(
+    get_curve=lambda: (fig.data[COMPOSITE].x, fig.data[COMPOSITE].y),
+    get_factors=lambda: checked_names,
+    header_height=theme.HEADER_HEIGHT,
+)
 
 # Everything below sits in one centered column. The plot and the table are the same width,
 # and the whole block is scaled to fit the window (theme.fit_to_screen).

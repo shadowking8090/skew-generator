@@ -33,14 +33,15 @@ STATIC_DIR = Path(__file__).parent / 'static'
 #    Add as many families as you like. System fonts ("Georgia") need no entry here.
 FONT_FILES = {
     'Skew Sans': {400: 'fonts/Regular.ttf', 700: 'fonts/Bold.ttf'},
-    # 'Skew Display': {700: 'fonts/Display-Bold.ttf'},     # <- e.g. a separate heading font
+    'Skew Display': {400: 'fonts/Jost-Bold.ttf'},
+    'Skew Display Light': {400: 'fonts/Jost-Light.ttf'}
 }
 
 # 2) Choose which family each part of the page uses (a family from FONT_FILES, or any system font).
 FONT_USE = {
     'page':       'Skew Sans',   # everything not listed below (buttons, labels, ...)
-    'heading':    'Skew Sans',   # the title above the plot            -> try 'Skew Display'
-    'subheading': 'Skew Sans',   # the line under the title
+    'heading':    'Skew Display',   # the title above the plot            -> try 'Skew Display'
+    'subheading': 'Skew Display Light',   # the line under the title
     'plot':       'Skew Sans',   # axis labels, ticks and hover tooltips
     'table':      'Skew Sans',   # the grid: header and cells
 }
