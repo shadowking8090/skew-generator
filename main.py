@@ -5,6 +5,7 @@ from nicegui import ui
 from home import home_page
 from projectTemplate import build_project_page
 from projects import PROJECTS_BY_ID
+from graph_entrance import install_graph_loading
 
 
 @ui.page('/')
@@ -19,6 +20,7 @@ def project(project_id: str) -> None:
         ui.navigate.to('/')
         return
     build_project_page(selected)
+    install_graph_loading()
 
 
 ui.run(title='SKEW', favicon=Path(__file__).parent / 'static' / 'favicon.png')
