@@ -32,19 +32,19 @@ STATIC_DIR = Path(__file__).parent / 'static'
 # 1) Register font families: CSS family name -> {weight: .ttf path inside static/}.
 #    Add as many families as you like. System fonts ("Georgia") need no entry here.
 FONT_FILES = {
-    'Skew Sans': {400: 'fonts/Regular.ttf', 700: 'fonts/Bold.ttf'},
     'Skew Display': {400: 'fonts/Jost-Bold.ttf'},
-    'Skew Display Light': {400: 'fonts/Jost-Light.ttf'}
+    'Skew Display Light': {400: 'fonts/Jost-Light.ttf'},
+    'Lekton': {400: 'fonts/Lekton-Regular.ttf', 700: 'fonts/Lekton-Bold.ttf'}
 }
 
 # 2) Choose which family each part of the page uses (a family from FONT_FILES, or any system font).
 FONT_USE = {
-    'page':       'Skew Sans',   # everything not listed below (buttons, labels, ...)
+    'page':       'Lekton',   # everything not listed below (buttons, labels, ...)
     'heading':    'Skew Display',   # the title above the plot            -> try 'Skew Display'
     'subheading': 'Skew Display Light',   # the line under the title
-    'plot':       'Skew Sans',   # axis labels, ticks and hover tooltips
-    'table':      'Skew Sans',   # the grid: header and cells
-    'menu':       'Skew Sans',   # the side drawer's project list
+    'plot':       'Lekton',   # axis labels, ticks and hover tooltips
+    'table':      'Lekton',   # the grid: header and cells
+    'menu':       'Skew Display',   # the side drawer's project list
 }
 FONT_FALLBACK = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
 
@@ -190,19 +190,23 @@ def _logo_data_uri() -> str | None:
     return 'data:image/png;base64,' + base64.b64encode(LOGO_FILE.read_bytes()).decode()
 
 
-def header() -> None:
-    """Navy bar across the top with the logo centered. Clicking the logo goes home."""
+def header(home_link: bool = True) -> None:
+    """Navy bar across the top with the logo centered. Clicking the logo goes home,
+    unless home_link is False (used on the home screen itself)."""
     width = round(LOGO_HEIGHT * LOGO_ASPECT)
     uri = _logo_data_uri()
     with ui.header(fixed=True).classes('items-center justify-center px-4 py-0 shadow-none') \
             .style(f'background:{PALETTE["ink"]}; height:{HEADER_HEIGHT}px; min-height:{HEADER_HEIGHT}px'):
         if uri:
-            ui.image(uri).props('fit=contain no-spinner no-transition') \
+            logo = ui.image(uri).props('fit=contain no-spinner no-transition') \
                 .style(f'width:{width}px; height:{LOGO_HEIGHT}px') \
-                .classes('cursor-pointer').on('click', lambda: ui.navigate.to('/'))   # logo = home
+                .classes('cursor-pointer' if home_link else '')
+            if home_link:
+                logo.on('click', lambda: ui.navigate.to('/'))   # logo = home
         else:   # fallback if the file is missing
-            ui.label('SKEW').classes('text-white text-lg font-bold cursor-pointer') \
-                .on('click', lambda: ui.navigate.to('/'))
+            logo = ui.label('SKEW').classes('text-white text-lg font-bold')
+            if home_link:
+                logo.classes('cursor-pointer').on('click', lambda: ui.navigate.to('/'))
 
 
 _FIT_JS = '''
