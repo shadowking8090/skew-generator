@@ -48,7 +48,7 @@ def build_project_page(project: Project) -> None:
         # can still show a trace's own hovertemplate, which is what made Perfect Normal differ).
         # The name is the bold first line of the same box, then identical MSE / Density lines.
         trace.hovertemplate = ('<b>%{fullData.name}</b><br>'
-                               'Mean squared error %{x:.3f}<br>Relative density %{y:.3f}<extra></extra>')
+                               'Mean Squared Error %{x:.3f}<br>Relative Density %{y:.3f}<extra></extra>')
         fig.add_trace(trace)
 
     PREVIEW = len(always_data)
@@ -91,6 +91,13 @@ def build_project_page(project: Project) -> None:
         .js-plotly-plot .plotly .main-svg, .js-plotly-plot .plotly .svg-container
             { overflow: visible !important; }
         .theme-card:has(.js-plotly-plot) { overflow: visible !important; position: relative; z-index: 5; }
+        .skew-project-grid .ag-header-cell-text {
+            font-weight: 700 !important;
+            text-transform: uppercase;
+        }
+        .skew-project-plot .xtitle, .skew-project-plot .ytitle {
+            font-weight: 700 !important;
+        }
     ''')
     # Plotly draws hover boxes as SVG paths. A matching rounded stroke softens
     # their corners; CSS border-radius does not apply to these paths.
@@ -124,8 +131,8 @@ def build_project_page(project: Project) -> None:
         const root = getHtmlElement(__PLOT_ID__);
         if (root._axisTooltipCleanup) root._axisTooltipCleanup();
         const explanations = {
-            '.xtitle': ['Mean squared error', 'Errors: 0 means none; 1 means all answers wrong.'],
-            '.ytitle': ['Relative density', 'Higher values mean more concentrated errors, not percentages.']
+            '.xtitle': ['Mean Squared Error', 'Closer to 0 means less error.'],
+            '.ytitle': ['Relative Density', 'Higher values mean more concentrated errors, not percentages.']
         };
         const tooltip = document.createElement('div');
         tooltip.setAttribute('role', 'tooltip');
@@ -135,7 +142,8 @@ def build_project_page(project: Project) -> None:
             zIndex: '20', background: __BG__, color: 'white',
             borderRadius: '4px', padding: '7px 8px', fontFamily: __FONT__,
             fontSize: '11px', lineHeight: '1.3', textAlign: 'left',
-            width: 'max-content', maxWidth: '310px'
+            width: '150px', boxSizing: 'border-box', whiteSpace: 'normal',
+            overflowWrap: 'break-word'
         });
         const heading = document.createElement('b');
         const description = document.createElement('div');
@@ -154,10 +162,24 @@ def build_project_page(project: Project) -> None:
             const anchor = label.getBoundingClientRect();
             const sx = box.width / root.offsetWidth || 1;
             const sy = box.height / root.offsetHeight || 1;
-            const left = (anchor.left + anchor.width / 2 - box.left) / sx - tooltip.offsetWidth / 2;
-            const top = (anchor.top - box.top) / sy - tooltip.offsetHeight - 8;
-            tooltip.style.left = Math.max(4, Math.min(left, root.offsetWidth - tooltip.offsetWidth - 4)) + 'px';
-            tooltip.style.top = Math.max(4, top) + 'px';
+            const isY = label.matches('.ytitle');
+            const gap = 4;
+            const sideRoom = isY
+                ? anchor.left - 8 - gap * sx
+                : window.innerWidth - 8 - anchor.right - gap * sx;
+            tooltip.style.width = Math.min(isY ? 150 : 135, Math.max(80, sideRoom / sx)) + 'px';
+            const left = isY
+                ? (anchor.left - box.left) / sx - tooltip.offsetWidth - gap
+                : (anchor.right - box.left) / sx + gap;
+            const top = (anchor.top + anchor.height / 2 - box.top) / sy
+                - tooltip.offsetHeight / 2 + (isY ? 0 : tooltip.offsetHeight * 1.375);
+            // Allow the box outside the chart, keeping it inside the viewport.
+            const minLeft = (8 - box.left) / sx;
+            const maxLeft = (window.innerWidth - 8 - box.left) / sx - tooltip.offsetWidth;
+            const minTop = (8 - box.top) / sy;
+            const maxTop = (window.innerHeight - 8 - box.top) / sy - tooltip.offsetHeight;
+            tooltip.style.left = Math.max(minLeft, Math.min(left, maxLeft)) + 'px';
+            tooltip.style.top = Math.max(minTop, Math.min(top, maxTop)) + 'px';
         };
         const attach = () => {
             for (const selector of Object.keys(explanations)) {
@@ -305,7 +327,7 @@ def build_project_page(project: Project) -> None:
             'columnDefs': [
                 {'field': 'color', 'headerName': '', ':cellRenderer': COLOR_SWATCH,
                  'width': SWATCH_W, 'minWidth': SWATCH_W, 'maxWidth': SWATCH_W},
-                {'field': 'name', 'headerName': 'Name', 'width': NAME_W},
+                {'field': 'name', 'headerName': 'NAME', 'width': NAME_W},
             ],
             'selectionColumnDef': {'width': SELECT_W, 'minWidth': SELECT_W, 'maxWidth': SELECT_W,
                                    'resizable': False},
@@ -316,7 +338,7 @@ def build_project_page(project: Project) -> None:
             'headerHeight': GRID_HEADER_H,
             'suppressCellFocus': True,
             'suppressHorizontalScroll': True,
-        }).classes('theme-card').style(f'width: {theme.CONTENT_WIDTH}px; height: auto')
+        }).classes('theme-card skew-project-grid').style(f'width: {theme.CONTENT_WIDTH}px; height: auto')
 
     grid.on('selectionChanged', on_selection_changed)
     grid.on('cellMouseOver', show_preview, ['data'])
