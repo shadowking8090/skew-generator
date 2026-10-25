@@ -124,23 +124,6 @@ def test_disabled_api_explains_how_to_enable_it():
     assert 'wait a few minutes' in message
 
 
-<<<<<<< Updated upstream
-@pytest.mark.parametrize('code,status,expected', [
-    ('timeout', 504, 'took too long'),
-    ('incomplete', 502, 'incomplete'),
-    ('blocked', 422, 'neutral wording'),
-    ('model_unavailable', 404, 'Update MODELS'),
-    ('configuration', 500, 'settings checked'),
-    ('connection', 502, 'could not reach Gemini'),
-])
-def test_worker_failure_codes_have_specific_messages(code, status, expected):
-    response = requests.Response()
-    response.status_code = status
-    response._content = json.dumps({'code': code, 'error': 'private upstream detail'}).encode()
-    message = wrapper.project_error_message(requests.HTTPError(response=response))
-    assert expected in message
-    assert 'private upstream detail' not in message
-=======
 def test_weighted_composite_keeps_unclaimed_share_on_the_baseline():
     base = np.array([1.0, 1.0])
     factor = Data(go.Scatter(x=[0, 1], y=[0.0, 4.0]), 'Age', 'red', weight=0.25)
@@ -179,4 +162,20 @@ def test_weighted_composite_renormalizes_when_shares_exceed_one():
     b = Data(go.Scatter(x=[0, 1], y=[0.0, 2.0]), 'B', 'blue', weight=0.6)
     mixed = weighted_composite(base, [a, b])
     np.testing.assert_allclose(mixed, 0.5 * np.array([2.0, 0.0]) + 0.5 * np.array([0.0, 2.0]))
->>>>>>> Stashed changes
+
+
+@pytest.mark.parametrize('code,status,expected', [
+    ('timeout', 504, 'took too long'),
+    ('incomplete', 502, 'incomplete'),
+    ('blocked', 422, 'neutral wording'),
+    ('model_unavailable', 404, 'Update MODELS'),
+    ('configuration', 500, 'settings checked'),
+    ('connection', 502, 'could not reach Gemini'),
+])
+def test_worker_failure_codes_have_specific_messages(code, status, expected):
+    response = requests.Response()
+    response.status_code = status
+    response._content = json.dumps({'code': code, 'error': 'private upstream detail'}).encode()
+    message = wrapper.project_error_message(requests.HTTPError(response=response))
+    assert expected in message
+    assert 'private upstream detail' not in message

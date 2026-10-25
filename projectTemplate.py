@@ -4,11 +4,8 @@ This is the body of the old main.py wrapped in a function. All state (figure,
 checked rows, hover slots) lives inside the call, so each visit, and each
 project, gets its own independent copy."""
 
-<<<<<<< Updated upstream
 import json
-=======
 from copy import deepcopy
->>>>>>> Stashed changes
 
 import numpy as np
 import plotly.graph_objects as go
@@ -18,7 +15,6 @@ import theme
 from data import Data, clamp_weight, factor_contribution, weighted_composite
 from downloadMenu import download_menu
 from projects import Project
-from palette import rgba
 from homeButton import home_button
 from transitions import animate_traces, hide_curve, rescale_curve, show_curve
 from wrapper import ask
@@ -65,8 +61,6 @@ def build_project_page(project: Project) -> None:
             name=f'Row preview {slot}',
             mode='lines',
             line=dict(color=theme.PALETTE['preview'], width=3, dash='solid'),
-            fill='tozeroy',
-            fillcolor=rgba(theme.PALETTE['preview'], 0.22),
             visible=False,
             showlegend=False,
             hoverinfo='skip',
@@ -269,10 +263,8 @@ def build_project_page(project: Project) -> None:
         active_slot = PREVIEW + next_slot % PREVIEW_SLOTS
         next_slot += 1
         fig.data[active_slot].update(x=x, y=y, name=f'{data.name} preview',
-                                     line_color=data.color, fillcolor=rgba(data.color, 0.22),
-                                     visible=True)
-        show_curve(plot, active_slot, x, y, color=data.color,
-                   fillcolor=rgba(data.color, 0.22))
+                                     line_color=data.color, visible=True)
+        show_curve(plot, active_slot, x, y, color=data.color)   # line only, no fill
 
     def show_preview(event: events.GenericEventArguments) -> None:
         nonlocal hovered_name
@@ -357,14 +349,10 @@ def build_project_page(project: Project) -> None:
             'columnDefs': [
                 {'field': 'color', 'headerName': '', ':cellRenderer': COLOR_SWATCH,
                  'width': SWATCH_W, 'minWidth': SWATCH_W, 'maxWidth': SWATCH_W},
-<<<<<<< Updated upstream
                 {'field': 'name', 'headerName': 'NAME', 'width': NAME_W},
-=======
-                {'field': 'name', 'headerName': 'Name', 'width': NAME_W},
-                {'field': 'weight', 'headerName': 'Weight', 'width': WEIGHT_W,
+                {'field': 'weight', 'headerName': 'WEIGHT', 'width': WEIGHT_W,
                  'minWidth': WEIGHT_W, 'maxWidth': WEIGHT_W,
                  ':cellRenderer': theme.WEIGHT_SLIDER_JS},
->>>>>>> Stashed changes
             ],
             'selectionColumnDef': {'width': SELECT_W, 'minWidth': SELECT_W, 'maxWidth': SELECT_W,
                                    'resizable': False},
