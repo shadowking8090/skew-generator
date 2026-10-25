@@ -190,10 +190,21 @@ def setup() -> None:
             -webkit-appearance: none; appearance: none; margin-top: -5px;
             width: 16px; height: 16px; border-radius: 50%; border: none;
             background: var(--thumb, {p['accent']});
+            box-shadow: 0 0 0 0 transparent; transition: box-shadow 0.35s ease-out;
         }}
         .skew-weight input[type=range]::-moz-range-thumb {{
             width: 16px; height: 16px; border-radius: 50%; border: none;
             background: var(--thumb, {p['accent']});
+            box-shadow: 0 0 0 0 transparent; transition: box-shadow 0.35s ease-out;
+        }}
+        /* Latched onto the default weight: a faint ring that fades in and out. */
+        .skew-weight.skew-latch input[type=range]::-webkit-slider-thumb {{
+            box-shadow: 0 0 0 4px color-mix(in srgb, var(--thumb, {p['accent']}) 22%, transparent);
+            transition-duration: 0.08s;
+        }}
+        .skew-weight.skew-latch input[type=range]::-moz-range-thumb {{
+            box-shadow: 0 0 0 4px color-mix(in srgb, var(--thumb, {p['accent']}) 22%, transparent);
+            transition-duration: 0.08s;
         }}
         .skew-weight-label {{
             width: 38px; text-align: right; font-variant-numeric: tabular-nums;
@@ -227,11 +238,11 @@ def header(home_link: bool = True) -> None:
         if uri:
             logo = ui.image(uri).props('fit=contain no-spinner no-transition') \
                 .style(f'width:{width}px; height:{LOGO_HEIGHT}px') \
-                .classes('cursor-pointer' if home_link else '')
+                .classes('skew-header-logo cursor-pointer' if home_link else 'skew-header-logo')
             if home_link:
                 logo.on('click', lambda: ui.navigate.to('/'))   # logo = home
         else:   # fallback if the file is missing
-            logo = ui.label('SKEW').classes('text-white text-lg font-bold')
+            logo = ui.label('SKEW').classes('skew-header-logo text-white text-lg font-bold')
             if home_link:
                 logo.classes('cursor-pointer').on('click', lambda: ui.navigate.to('/'))
 
@@ -291,7 +302,9 @@ def fit_to_screen() -> ui.column:
             .style(f'width: {CONTENT_WIDTH}px')
 
 
-# Slider cell in the factor table. Emits window event 'factor-weight'.
+# Slider cell in the factor table. While dragging it emits 'factor-weight-live'
+# (the factor's own line follows the slider); on release it emits 'factor-weight'
+# (the composite updates once, when the person stops dragging).
 # Dragging within SNAP points of the row's default_weight clicks onto the default
 # (except at the very ends, so small defaults can still reach 1%).
 WEIGHT_SLIDER_JS = '''params => {
@@ -307,7 +320,8 @@ WEIGHT_SLIDER_JS = '''params => {
     if (params.data && params.data.color) slider.style.setProperty('--thumb', params.data.color);
     const SNAP = 2;
     const def = Math.round(Number(params.data && params.data.default_weight) * 100);
-    let last = Number(slider.value);
+    let last = Number(slider.value);   // last value shown while dragging
+    let sent = last;                   // last value sent to the graph
     const label = document.createElement('span');
     label.className = 'skew-weight-label';
     const sync = () => { label.textContent = slider.value + '%'; };
@@ -322,8 +336,20 @@ WEIGHT_SLIDER_JS = '''params => {
             slider.value = String(def);
         }
         sync();
-        if (value === last) return;   // held at the default: nothing new to send
+        if (value === last) return;   // held at the default: nothing changed
+        if (value === def) {          // just latched: brief ring around the knob
+            wrap.classList.add('skew-latch');
+            clearTimeout(wrap._latchTimer);
+            wrap._latchTimer = setTimeout(() => wrap.classList.remove('skew-latch'), 450);
+        }
         last = value;
+        emitEvent('factor-weight-live', {name: params.data.name, weight: value / 100});
+    });
+    // Released: now update the graph, once.
+    slider.addEventListener('change', () => {
+        const value = Number(slider.value);
+        if (value === sent) return;
+        sent = value;
         const weight = value / 100;
         params.data.weight = weight;
         emitEvent('factor-weight', {name: params.data.name, weight: weight});
