@@ -10,7 +10,7 @@ from data import Data
 from transitions import animate_traces, hide_curve, rescale_curve, show_curve
 import theme
 from downloadMenu import download_menu
-from wrapper import ask
+from wrapper import generate_data
 
 # Sample data
 
@@ -258,24 +258,39 @@ grid.on('mouseout', hide_preview, js_handler='''(event) => {
 }''')
 grid.on('mouseleave', hide_preview)
 
-# Text box: sends what the user types to the Cloudflare Worker (wrapper.ask)
-# and shows the reply below it. The reply is also printed in the terminal.
+# Text box: generate sampleData-compatible curves and add them to the grid.
 
 async def send_prompt() -> None:
-    prompt = prompt_box.value.strip()
+    prompt = (prompt_box.value or '').strip()
     if not prompt:
         return
-    reply_label.text = 'Waiting for reply...'
+    if not send_button.enabled:
+        return
+    send_button.disable()
+    reply_label.text = 'Generating synthetic curves...'
     try:
-        reply = await run.io_bound(ask, prompt)
+        items = await run.io_bound(generate_data, prompt)
+        # Resolve existing names before adding anything, including repeat requests.
+        used_names = set(data_by_name) | ALWAYS_SHOWN
+        for item in items:
+            original_name = item.name
+            suffix = 2
+            while item.name in used_names:
+                item.name = f'{original_name} ({suffix})'
+                suffix += 1
+            used_names.add(item.name)
+            item.trace.name = item.name
+        for item in items:
+            add_data(item)
+        reply_label.text = f'Added {len(items)} synthetic curve(s). Select a row to include it in the composite.'
     except Exception as e:
-        reply = f'Error: {e}'
-    reply_label.text = reply
-    print('Gemini:', reply)
+        reply_label.text = f'Error: {e}'
+    finally:
+        send_button.enable()
 
 with content:
-    prompt_box = ui.input('Ask something').on('keydown.enter', send_prompt)
-    ui.button('Send', on_click=send_prompt)
+    prompt_box = ui.input('Describe curves or bias factors').on('keydown.enter', send_prompt)
+    send_button = ui.button('Send', on_click=send_prompt)
     reply_label = ui.label()
 
 # Start the app
