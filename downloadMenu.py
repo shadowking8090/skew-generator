@@ -18,6 +18,7 @@ Icon: put your PNG at static/download.png. If it is missing, a built-in icon is 
 """
 
 import base64
+import json
 from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 
@@ -58,6 +59,8 @@ def download_menu(
     get_curve: Callable[[], tuple[Sequence[float], Sequence[float]]],
     get_factors: Callable[[], Iterable[str]],
     header_height: int = 48,
+    get_plot: Callable[[], ui.plotly] | None = None,
+    graph_filename: str = 'skew_graph',
 ) -> ui.button:
     """Create the button at the top-left, centered vertically in the header bar."""
     # A fixed-position wrapper, so the button sits over the left end of the header
@@ -110,6 +113,33 @@ def download_menu(
 
                     ui.button('Download CSV', on_click=lambda: download()) \
                         .props('unelevated no-caps').classes('w-full').style('background-color: #0F1B2D !important; color: #FFFFFF !important;')
+                    if get_plot is not None:
+                        ui.separator()
+                        ui.label('Download graph').style(_TITLE_STYLE)
+
+                        async def download_graph() -> None:
+                            try:
+                                plot = get_plot()
+                                await ui.run_javascript(
+                                    'return (async () => {'
+                                    f'const root = getHtmlElement({plot.id});'
+                                    'const graph = root.matches(".js-plotly-plot") '
+                                    '? root : root.querySelector(".js-plotly-plot");'
+                                    'if (!graph) throw new Error("Graph is not ready");'
+                                    'await Plotly.downloadImage(graph, {'
+                                    'format: "png", scale: 3, '
+                                    f'filename: {json.dumps(graph_filename)}'
+                                    '}); return true; })();',
+                                    timeout=30,
+                                )
+                            except Exception:
+                                ui.notify('Could not download the graph. Please try again.', type='negative')
+                                return
+                            menu.close()
+
+                        ui.button('Download PNG', on_click=download_graph) \
+                            .props('unelevated no-caps').classes('w-full').style(
+                                'background-color: #0F1B2D !important; color: #FFFFFF !important;')
                     menu.on('before-show', lambda: refresh_summary())
                     refresh_summary()
     return button

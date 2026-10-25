@@ -116,6 +116,8 @@ def build_project_page(project: Project) -> None:
         get_curve=lambda: (fig.data[COMPOSITE].x, fig.data[COMPOSITE].y),
         get_factors=lambda: checked_names,
         header_height=theme.HEADER_HEIGHT,
+        get_plot=lambda: plot,
+        graph_filename=project.id,
     )
 
     home_button(current_id=project.id)
