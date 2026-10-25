@@ -1,3 +1,5 @@
+# home.py
+
 """Home screen: the NEW button (left-aligned) above a grid of project cards.
 
 Each card shows an image preview, the project title and its description. The preview is
@@ -8,16 +10,14 @@ import base64
 from pathlib import Path
 
 import numpy as np
-from nicegui import run, ui
+from nicegui import ui
 
 import theme
 from projects import PROJECTS, Project
-from wrapper import ask
 
 PAGE_WIDTH = 960        # px; max width of the title, button and card grid
 CARD_MIN_WIDTH = 280    # px; the grid fits as many columns of at least this width as it can
 PREVIEW_HEIGHT = 130    # px
-NEW_BAND_MIN_HEIGHT = '280px'   # height of the NEW band; any CSS length: '240px', '40vh', ...
 
 P = theme.PALETTE
 
@@ -38,6 +38,14 @@ CSS = f'''
         font-size: 22px; font-weight: 700; line-height: 1.2;
         letter-spacing: -0.01em; color: {P['ink']};
     }}
+    .project-band-heading {{
+        font-family: var(--font-heading);
+        font-size: 16px; font-weight: 700; letter-spacing: 0.06em; color: {P['ink']};
+    }}
+    .project-band-subheading {{
+        font-family: var(--font-subheading);
+        font-size: 14px; font-weight: 400; line-height: 1.4; color: {P['muted']};
+    }}
     .project-card-title {{
         font-family: var(--font-heading);
         font-size: 18px; font-weight: 700; line-height: 1.2;
@@ -52,6 +60,11 @@ CSS = f'''
         font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
         text-transform: uppercase; color: {P['muted']};
     }}
+    .action-btn {{
+        font-family: var(--font-heading) !important;
+        letter-spacing: 0.04em;
+    }}
+    .
 '''
 
 
@@ -110,47 +123,30 @@ def home_page() -> None:
     theme.header(home_link=False)   # already home: the logo isn't a link here
     ui.add_css(CSS)
 
-    # NEW band: full-width, slightly off-color strip with the prompt box always open
+    # NEW band: full-width, slightly off-color strip ending right after the button container
     with ui.column().classes('new-band w-full items-center') \
-            .style(f'min-height: {NEW_BAND_MIN_HEIGHT}; padding: 32px 16px'):
+            .style(f'padding: 32px 16px 24px'):
         with ui.column().classes('w-full gap-3').style(f'max-width: {PAGE_WIDTH}px'):
-            ui.label('NEW PROJECT').classes('project-band-title')
-            ui.label('Describe what you want to explore.').classes('project-card-text')
+            ui.label('PROJECTS').classes('project-band-heading')
+            ui.label('Something about projects that is very profound.'.upper()).classes('project-band-subheading')
 
-            prompt_box = ui.textarea(placeholder='Describe the new project') \
-                .props('outlined bg-color=white input-style="min-height: 96px"').classes('w-full')
+            # Combined long button with the + sign and CREATE PROJECT text, controlling a dropdown
+            with ui.menu() as menu:
+                with ui.card().classes('p-3 gap-2').style('width: 280px'):
+                    textbox = ui.textarea(placeholder='Enter project details...').props('outlined rows=2').classes('w-full')
+                    textbox.style('resize: none;')  # Prevent manual resizing / expanding
+                    ui.button('Submit', on_click=lambda: (print(textbox.value), menu.close())) \
+                        .props('unelevated').classes('action-btn w-full') \
+                        .style(f'background-color: {P["ink"]} !important; color: {theme.LOGO_COLOR}')
 
-            with ui.row().classes('items-center gap-4'):
-                send_button = ui.button('CREATE PROJECT', icon='add', on_click=lambda: send_prompt())
-                ui.label('Ctrl+Enter to send').classes('project-card-meta')
-
-            with ui.card().props('flat').classes('theme-card w-full') as reply_card:
-                reply_label = ui.label().classes('whitespace-pre-wrap')
-            reply_card.set_visibility(False)
-
-            async def send_prompt() -> None:
-                prompt = (prompt_box.value or '').strip()
-                if not prompt:
-                    return
-                send_button.disable()
-                send_button.props(add='loading')
-                reply_label.text = 'Waiting for reply...'
-                reply_card.set_visibility(True)
-                try:
-                    reply = await run.io_bound(ask, prompt)
-                except Exception as e:
-                    reply = f'Error: {e}'
-                reply_label.text = reply
-                send_button.props(remove='loading')
-                send_button.enable()
-                print('New project reply:', reply)
-
-            prompt_box.on('keydown.ctrl.enter', send_prompt)
+            ui.button('CREATE PROJECT', icon='add', on_click=lambda: menu.open()) \
+                .props('unelevated') \
+                .classes('action-btn self-start items-center') \
+                .style(f'background-color: {P["ink"]} !important; color: {theme.LOGO_COLOR}; height: 40px; padding: 0 20px; font-weight: 600; border-radius: 9999px;')
 
     # Projects: heading and the grid of cards
     with ui.column().classes('w-full items-center').style('padding: 24px 16px 32px'):
         with ui.column().classes('w-full gap-4').style(f'max-width: {PAGE_WIDTH}px'):
-            theme.heading('PROJECTS', '')
 
             if not PROJECTS:
                 ui.label('No projects yet. Add one to projects.py.')
