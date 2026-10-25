@@ -503,14 +503,18 @@ def build_project_page(project: Project) -> None:
                     f'background-color: {theme.PALETTE["ink"]} !important; '
                     f'color: {theme.LOGO_COLOR} !important;') as add_button:
             # Opens to the right of the button, in line with it.
-            with ui.menu().props('anchor="center right" self="center left" :offset="[12, 0]"') \
+            with ui.menu().props('anchor="center right" self="center left" :offset="[12, 0]" '
+                                 'transition-show="fade" transition-hide="fade" '
+                                 'transition-duration="120"') \
                     as parameter_menu:
-                # Width is set each time the window opens (see before-show below), so its
-                # right edge lines up with the right edge of the row.
+                # Width comes from --add-parameter-width, which is computed up front (and on
+                # resize) by the script at the bottom, so its right edge lines up with the
+                # right edge of the row and the box doesn't shift on the first open.
                 with ui.row().classes('items-center gap-3 no-wrap p-3') \
                         .style('width: var(--add-parameter-width, 600px)'):
                     parameter_prompt = ui.input(placeholder='Describe a new parameter...') \
-                        .props('outlined dense').style('flex: 1 1 auto; min-width: 0')
+                        .props('outlined dense').classes('add-parameter-input') \
+                        .style('flex: 1 1 auto; min-width: 0')
 
                     async def submit_parameter() -> None:
                         if not parameter_submit.enabled:
@@ -569,17 +573,33 @@ def build_project_page(project: Project) -> None:
 
                     parameter_prompt.on('keydown.enter', submit_parameter)
 
-                parameter_menu.on('before-show', js_handler='''() => {
-                    const button = document.querySelector('.add-parameter-button');
-                    const row = button && button.closest('.add-parameter-row');
-                    if (!row) return;
-                    const gap = 12;   // matches the menu's offset
-                    const width = row.getBoundingClientRect().right
-                        - button.getBoundingClientRect().right - gap;
-                    document.documentElement.style.setProperty(
-                        '--add-parameter-width', Math.max(280, Math.floor(width)) + 'px');
+                # Set the menu width ahead of time (the row is created after page load, so wait
+                # for it) and keep it current on resize. Doing this in 'before-show' made the
+                # box resize after Quasar had already positioned it on the first open.
+                ui.add_body_html('''
+                <script>
+                (function () {
+                    const update = () => {
+                        const button = document.querySelector('.add-parameter-button');
+                        const row = button && button.closest('.add-parameter-row');
+                        if (!row) return false;
+                        const gap = 12;   // matches the menu's offset
+                        const width = row.getBoundingClientRect().right
+                            - button.getBoundingClientRect().right - gap;
+                        document.documentElement.style.setProperty(
+                            '--add-parameter-width', Math.max(280, Math.floor(width)) + 'px');
+                        return true;
+                    };
+                    const wait = setInterval(() => { if (update()) clearInterval(wait); }, 50);
+                    window.addEventListener('resize', update);
+                })();
+                </script>
+                ''')
+                # Focus on the client instead of a server round trip.
+                parameter_menu.on('show', js_handler='''() => {
+                    const input = document.querySelector('.add-parameter-input input');
+                    if (input) input.focus();
                 }''')
-                parameter_menu.on('show', lambda: parameter_prompt.run_method('focus'))
 
         def update_add_button() -> None:
             """Grey out ADD PARAMETER while the table is full."""
