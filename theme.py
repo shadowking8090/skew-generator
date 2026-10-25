@@ -190,10 +190,21 @@ def setup() -> None:
             -webkit-appearance: none; appearance: none; margin-top: -5px;
             width: 16px; height: 16px; border-radius: 50%; border: none;
             background: var(--thumb, {p['accent']});
+            box-shadow: 0 0 0 0 transparent; transition: box-shadow 0.35s ease-out;
         }}
         .skew-weight input[type=range]::-moz-range-thumb {{
             width: 16px; height: 16px; border-radius: 50%; border: none;
             background: var(--thumb, {p['accent']});
+            box-shadow: 0 0 0 0 transparent; transition: box-shadow 0.35s ease-out;
+        }}
+        /* Latched onto the default weight: a faint ring that fades in and out. */
+        .skew-weight.skew-latch input[type=range]::-webkit-slider-thumb {{
+            box-shadow: 0 0 0 4px color-mix(in srgb, var(--thumb, {p['accent']}) 22%, transparent);
+            transition-duration: 0.08s;
+        }}
+        .skew-weight.skew-latch input[type=range]::-moz-range-thumb {{
+            box-shadow: 0 0 0 4px color-mix(in srgb, var(--thumb, {p['accent']}) 22%, transparent);
+            transition-duration: 0.08s;
         }}
         .skew-weight-label {{
             width: 38px; text-align: right; font-variant-numeric: tabular-nums;
@@ -323,6 +334,11 @@ WEIGHT_SLIDER_JS = '''params => {
         }
         sync();
         if (value === last) return;   // held at the default: nothing new to send
+        if (value === def) {          // just latched: brief ring around the knob
+            wrap.classList.add('skew-latch');
+            clearTimeout(wrap._latchTimer);
+            wrap._latchTimer = setTimeout(() => wrap.classList.remove('skew-latch'), 450);
+        }
         last = value;
         const weight = value / 100;
         params.data.weight = weight;
