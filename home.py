@@ -208,7 +208,7 @@ def home_page(on_project_submit: Callable[..., Any] | None = None) -> None:
 
             ui.label('PROJECTS').classes('project-band-title')
 
-            ui.label('Something about projects that is very profound.'.upper()) \
+            ui.label('Simulate how bias shapes your data'.upper()) \
                 .classes('project-band-subheading')
 
             # The menu is directly attached to its trigger button.

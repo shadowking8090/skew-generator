@@ -39,6 +39,14 @@ MENU_WIDTH = 280                            # px
 
 _TITLE_STYLE = 'font-size:16px; font-weight:700; line-height:1.2; color:#0F1B2D'
 _NOTE_STYLE = 'font-size:13px; line-height:1.4; color:#5B6B7F'
+# Same look as the home page: heading font for headers and buttons, subheading font for notes.
+_HEADER_STYLE = ('font-family:var(--font-heading); font-size:18px; font-weight:700; '
+                 'line-height:1.2; letter-spacing:-0.01em; color:#0F1B2D; text-transform:uppercase')
+_SUBHEADER_STYLE = ('font-family:var(--font-subheading); font-size:14px; font-weight:400; '
+                    'line-height:1.4; color:#5B6B7F;')
+_BUTTON_STYLE = ('background-color:#0F1B2D !important; color:#FFFFFF !important; '
+                 'font-family:var(--font-heading) !important; font-weight:700; '
+                 'letter-spacing:0.04em; text-transform:uppercase')
 
 
 def _icon_data_uri() -> str | None:
@@ -81,10 +89,10 @@ def download_menu(
 
             with ui.menu().props('anchor="bottom left" self="top left"') as menu:
                 with ui.column().classes('gap-3 p-4').style(f'width:{MENU_WIDTH}px'):
-                    ui.label('Download data').style(_TITLE_STYLE)
-                    summary = ui.label().style(_NOTE_STYLE)
+                    ui.label('Download data').style(_HEADER_STYLE)
+                    summary = ui.label().style(_SUBHEADER_STYLE)
                     with ui.row().classes('w-full items-baseline justify-between no-wrap gap-2'):
-                        ui.label('# of samples').style(_NOTE_STYLE)
+                        ui.label('Number of samples').style(_NOTE_STYLE)
                         count_label = ui.label().style(_TITLE_STYLE)
                     amount = ui.slider(min=MIN_COUNT, max=MAX_COUNT, step=STEP, value=DEFAULT_COUNT) \
                         .props('snap label-color=primary').classes('w-full').style('--q-primary: #0F1B2D; accent-color: #0F1B2D')
@@ -111,11 +119,9 @@ def download_menu(
                         menu.close()
                         ui.notify(f'Downloaded {count:,} samples', type='positive')
 
-                    ui.button('Download CSV', on_click=lambda: download()) \
-                        .props('unelevated no-caps').classes('w-full').style('background-color: #0F1B2D !important; color: #FFFFFF !important;')
+                    ui.button('DOWNLOAD CSV', on_click=lambda: download()) \
+                        .props('unelevated no-caps').classes('w-full').style(_BUTTON_STYLE)
                     if get_plot is not None:
-                        ui.separator()
-                        ui.label('Download graph').style(_TITLE_STYLE)
 
                         async def download_graph() -> None:
                             try:
@@ -137,9 +143,8 @@ def download_menu(
                                 return
                             menu.close()
 
-                        ui.button('Download PNG', on_click=download_graph) \
-                            .props('unelevated no-caps').classes('w-full').style(
-                                'background-color: #0F1B2D !important; color: #FFFFFF !important;')
+                        ui.button('DOWNLOAD PNG', on_click=download_graph) \
+                            .props('unelevated no-caps').classes('w-full').style(_BUTTON_STYLE)
                     menu.on('before-show', lambda: refresh_summary())
                     refresh_summary()
     return button
