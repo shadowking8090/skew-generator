@@ -42,6 +42,11 @@ CSS = f'''
         font-size: 14px; font-weight: 400; line-height: 1.4;
         color: {P['muted']};
     }}
+    .project-card-title {{
+        font-family: var(--font-heading);
+        font-size: 18px; font-weight: 700; line-height: 1.2;
+        letter-spacing: -0.01em; color: {P['ink']};
+    }}
     .project-card-text {{
         font-family: var(--font-subheading);
         font-size: 14px; line-height: 1.4; color: {P['muted']};
