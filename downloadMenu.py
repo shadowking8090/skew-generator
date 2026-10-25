@@ -63,7 +63,7 @@ def download_menu(
     # A fixed-position wrapper, so the button sits over the left end of the header
     # without changing the header's layout (the logo stays centered).
     with ui.element('div').style(
-        f'position:fixed; top:0; left:{INSET}px; height:{header_height}px; z-index:2100; '
+        f'position:fixed; top:0; right:{INSET}px; height:{header_height}px; z-index:2100; '
         'display:flex; align-items:center'
     ):
         with ui.button().props('flat round dense color=white') as button:
