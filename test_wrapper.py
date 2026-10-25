@@ -23,6 +23,7 @@ def test_generate_data_uses_description_and_returns_plot_data():
     assert 'Model fatigue' in post.call_args.kwargs['json']['prompt']
     assert post.call_args.kwargs['timeout'] == 60
     assert len(items) == 1 and isinstance(items[0], Data)
+    assert items[0].name == 'Test'
     np.testing.assert_array_equal(items[0].trace.x, x)
     assert np.all(np.isfinite(items[0].trace.y))
     assert min(items[0].trace.y) >= 0

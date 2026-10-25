@@ -4,8 +4,7 @@ that opens a prompt bar for describing a new project."""
 from nicegui import run, ui
 
 import theme
-from projects import PROJECTS
-from wrapper import ask
+from projects import PROJECTS, create_project
 
 
 def home_page() -> None:
@@ -28,18 +27,18 @@ def home_page() -> None:
         prompt_area.set_visibility(False)
 
         async def send_prompt() -> None:
-            prompt = prompt_box.value.strip()
-            if not prompt:
+            prompt = (prompt_box.value or '').strip()
+            if not prompt or not send_button.enabled:
                 return
             send_button.disable()
-            reply_label.text = 'Waiting for reply...'
+            reply_label.text = 'Creating project with five parameters...'
             try:
-                reply = await run.io_bound(ask, prompt)
+                project = await run.io_bound(create_project, prompt)
+                ui.navigate.to(f'/project/{project.id}')
             except Exception as e:
-                reply = f'Error: {e}'
-            reply_label.text = reply
-            send_button.enable()
-            print('New project reply:', reply)
+                reply_label.text = f'Error: {e}'
+            finally:
+                send_button.enable()
 
         prompt_box.on('keydown.enter', send_prompt)
 
@@ -47,7 +46,7 @@ def home_page() -> None:
             prompt_area.set_visibility(not prompt_area.visible)
 
         if not PROJECTS:
-            ui.label('No projects yet. Add one to projects.py.')
+            ui.label('No projects yet. Click NEW to create one.')
 
         for project in PROJECTS:
             with ui.card().classes('theme-card cursor-pointer') \

@@ -6,14 +6,13 @@ project, gets its own independent copy."""
 
 import numpy as np
 import plotly.graph_objects as go
-from nicegui import events, run, ui
+from nicegui import events, ui
 
 import theme
 from data import Data
 from downloadMenu import download_menu
 from projects import Project
 from transitions import animate_traces, hide_curve, rescale_curve, show_curve
-from wrapper import ask
 
 
 def build_project_page(project: Project) -> None:
@@ -215,21 +214,3 @@ def build_project_page(project: Project) -> None:
     }''')
     grid.on('mouseleave', hide_preview)
 
-    # Prompt box
-
-    async def send_prompt() -> None:
-        prompt = prompt_box.value.strip()
-        if not prompt:
-            return
-        reply_label.text = 'Waiting for reply...'
-        try:
-            reply = await run.io_bound(ask, prompt)
-        except Exception as e:
-            reply = f'Error: {e}'
-        reply_label.text = reply
-        print('Gemini:', reply)
-
-    with content:
-        prompt_box = ui.input('Ask something').on('keydown.enter', send_prompt)
-        ui.button('Send', on_click=send_prompt)
-        reply_label = ui.label()
