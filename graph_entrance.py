@@ -1,4 +1,3 @@
-
 """Smooth, sequential entrance animation for NiceGUI Plotly graphs."""
 
 from nicegui import ui
@@ -198,11 +197,19 @@ def install_graph_loading(duration_ms: int = 2050) -> None:
                     observer.disconnect();
                 }
 
+                // If a loading screen is up (see loading_screen.py), fade it out
+                // first, then draw the curves into the revealed page.
+                const loaderGone = window.__skewLoaderHide
+                    ? window.__skewLoaderHide()
+                    : Promise.resolve();
+
                 // Start after two browser rendering frames.
-                requestAnimationFrame(() =>
-                    requestAnimationFrame(() => {
-                        plots.forEach(animateChart);
-                    })
+                loaderGone.then(() =>
+                    requestAnimationFrame(() =>
+                        requestAnimationFrame(() => {
+                            plots.forEach(animateChart);
+                        })
+                    )
                 );
             }
 
@@ -228,8 +235,9 @@ def install_graph_loading(duration_ms: int = 2050) -> None:
                         observer.disconnect();
                     }
 
-                    // Never leave the graph hidden.
+                    // Never leave the graph hidden (or the loading screen up).
                     if (!finished) {
+                        if (window.__skewLoaderHide) window.__skewLoaderHide();
                         document.querySelectorAll(
                             '.js-plotly-plot'
                         ).forEach(plot => {

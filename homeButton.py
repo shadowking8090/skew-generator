@@ -5,6 +5,7 @@ lives in theme.header().)
 Call it once per page, right after theme.header() and outside the scaled content column."""
 
 import base64
+import json
 from pathlib import Path
 
 from nicegui import ui
@@ -44,7 +45,9 @@ def home_button(current_id: str | None = None) -> None:
             .style(f"color: {theme.PALETTE['ink']}; font-size: 20px")
         with ui.list().props('separator').classes('w-full'):
             for project in PROJECTS:
-                item = ui.item(on_click=lambda p=project: ui.navigate.to(f'/project/{p.id}'))
+                url = f'/project/{project.id}'
+                item = ui.item().props('clickable').on(
+                    'click', js_handler=f"() => window.__skewFadeNavigate ? window.__skewFadeNavigate({json.dumps(url)}) : (window.location.href = {json.dumps(url)})")
                 if project.id == current_id:
                     item.props('active')
                 with item:

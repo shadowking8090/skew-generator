@@ -241,11 +241,11 @@ def header(home_link: bool = True) -> None:
                 .style(f'width:{width}px; height:{LOGO_HEIGHT}px') \
                 .classes('skew-header-logo cursor-pointer' if home_link else 'skew-header-logo')
             if home_link:
-                logo.on('click', lambda: ui.navigate.to('/'))   # logo = home
+                logo.on('click', js_handler="() => window.__skewFadeNavigate ? window.__skewFadeNavigate('/') : (window.location.href = '/')")   # logo = home (fades first)
         else:   # fallback if the file is missing
             logo = ui.label('SKEW').classes('skew-header-logo text-white text-lg font-bold')
             if home_link:
-                logo.classes('cursor-pointer').on('click', lambda: ui.navigate.to('/'))
+                logo.classes('cursor-pointer').on('click', js_handler="() => window.__skewFadeNavigate ? window.__skewFadeNavigate('/') : (window.location.href = '/')")
 
 
 _FIT_JS = '''

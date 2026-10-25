@@ -18,6 +18,7 @@ from downloadMenu import download_menu
 from projects import Project
 from palette import SERIES_COLORS
 from homeButton import home_button
+from loadingScreen import install_project_loader
 from transitions import animate_traces, hide_curve, rescale_curve, show_curve
 from wrapper import generate_data, project_error_message
 
@@ -94,6 +95,22 @@ def build_project_page(project: Project) -> None:
         .js-plotly-plot .plotly .main-svg, .js-plotly-plot .plotly .svg-container
             { overflow: visible !important; }
         .theme-card:has(.js-plotly-plot) { overflow: visible !important; position: relative; z-index: 5; }
+        html, body { overflow-x: hidden; }
+        .skew-project-grid .ag-body-viewport,
+        .skew-project-grid .ag-center-cols-viewport { overflow: hidden !important; }
+        .skew-project-grid, .skew-project-grid * { scrollbar-width: none; }
+        .skew-project-grid ::-webkit-scrollbar { width: 0; height: 0; display: none; }
+        .skew-project-grid .ag-body-vertical-scroll,
+        .skew-project-grid .ag-body-horizontal-scroll,
+        .skew-project-grid .ag-horizontal-left-spacer,
+        .skew-project-grid .ag-horizontal-right-spacer {
+            display: none !important; width: 0 !important; min-width: 0 !important;
+            max-width: 0 !important; height: 0 !important; min-height: 0 !important;
+        }
+        .skew-project-grid .ag-header, .skew-project-grid .ag-header-viewport,
+        .skew-project-grid .ag-body-viewport, .skew-project-grid .ag-center-cols-clipper,
+        .skew-project-grid .ag-center-cols-viewport { padding-right: 0 !important; margin-right: 0 !important; }
+        .skew-project-grid .ag-row-last { border-bottom-color: transparent !important; }
         .skew-project-grid .ag-header-cell-text {
             font-weight: 700 !important;
             text-transform: uppercase;
@@ -131,6 +148,7 @@ def build_project_page(project: Project) -> None:
         }}
     ''')
 
+    install_project_loader()   # loading screen, until the graph entrance is ready
     theme.setup()
     theme.header()
 
@@ -334,11 +352,16 @@ def build_project_page(project: Project) -> None:
         selectable_data.append(item)
         default_weights[item.name] = item.weight
         project.extra_parameters.append(deepcopy(item))
-        grid.options['rowData'].append({
+        row = {
             'name': item.name, 'color': item.color, 'weight': item.weight,
             'default_weight': item.weight, 'weight_source': item.weight_source,
-        })
-        grid.update()
+        }
+        grid.options['rowData'].append(row)
+        grid.style(f'height: {grid_height()}px')
+        # Add just this row. grid.update() would rebuild every row, which clears the
+        # checkmarks and snaps every slider back to its starting position.
+        grid.run_grid_method('applyTransaction', {'add': [row]})
+        update_add_button()
 
     # Grid
 
@@ -368,6 +391,17 @@ def build_project_page(project: Project) -> None:
     SELECT_W, SWATCH_W, WEIGHT_W, REMOVE_W = 48, 48, 168, 48
     NAME_W = theme.CONTENT_WIDTH - 2 - SELECT_W - SWATCH_W - WEIGHT_W - REMOVE_W
     GRID_ROW_H = GRID_HEADER_H = 40
+    GRID_MIN_ROWS = 3
+    MAX_PARAMETERS = 10
+    # A few spare pixels so the rows never measure even 1px taller than the table body
+    # (browser zoom rounds). If they do, the grid assumes a vertical scroll bar is coming
+    # and keeps a scroll-bar-wide strip empty on the right of every row.
+    GRID_SLACK = 4
+
+    def grid_height() -> int:
+        """Exact pixel height for the current rows (at least GRID_MIN_ROWS tall)."""
+        rows = max(len(selectable_data), GRID_MIN_ROWS)
+        return GRID_HEADER_H + rows * GRID_ROW_H + 2 + GRID_SLACK   # +2: border
 
     def on_weight_changed(event: events.GenericEventArguments) -> None:
         args = event.args if isinstance(event.args, dict) else {}
@@ -398,6 +432,7 @@ def build_project_page(project: Project) -> None:
             return
         if hovered_name in names:
             hide_preview()
+        was_checked = bool(names & checked_names)
         checked_names.difference_update(names)
         for name in names:
             data_by_name.pop(name, None)
@@ -405,9 +440,12 @@ def build_project_page(project: Project) -> None:
         selectable_data[:] = [item for item in selectable_data if item.name not in names]
         project.extra_parameters[:] = [item for item in project.extra_parameters if item.name not in names]
         project.removed_parameters.update(names)
-        grid.options['rowData'] = [row for row in grid.options['rowData'] if row['name'] not in names]
-        grid.update()
-        refresh_plot()
+        grid.options['rowData'][:] = [row for row in grid.options['rowData'] if row['name'] not in names]
+        grid.run_grid_method('applyTransaction', {'remove': [{'name': name} for name in names]})
+        grid.style(f'height: {grid_height()}px')
+        update_add_button()
+        if was_checked:
+            refresh_plot()
         ui.notify(f'Removed {len(names)} parameter(s).', type='positive')
 
 
@@ -422,7 +460,7 @@ def build_project_page(project: Project) -> None:
             'columnDefs': [
                 {'field': 'color', 'headerName': '', ':cellRenderer': COLOR_SWATCH,
                  'width': SWATCH_W, 'minWidth': SWATCH_W, 'maxWidth': SWATCH_W},
-                {'field': 'name', 'headerName': 'NAME', 'width': NAME_W},
+                {'field': 'name', 'headerName': 'NAME', 'flex': 1, 'minWidth': 120},   # takes all leftover width
                 {'field': 'weight', 'headerName': 'WEIGHT', 'width': WEIGHT_W,
                  'minWidth': WEIGHT_W, 'maxWidth': WEIGHT_W,
                  ':cellRenderer': theme.WEIGHT_SLIDER_JS},
@@ -437,12 +475,19 @@ def build_project_page(project: Project) -> None:
                          'default_weight': default_weights[d.name],
                          'weight_source': d.weight_source} for d in selectable_data],
             'rowSelection': {'mode': 'multiRow'},
-            'domLayout': 'autoHeight',
+            'domLayout': 'normal',
+            # Rows jump straight to their place. Sliding rows pass under the mouse one by
+            # one, which fired a hover preview for each and made the graph flicker.
+            'animateRows': False,
             'rowHeight': GRID_ROW_H,
             'headerHeight': GRID_HEADER_H,
             'suppressCellFocus': True,
             'suppressHorizontalScroll': True,
-        }).classes('theme-card skew-project-grid').style(f'width: {theme.CONTENT_WIDTH}px; height: auto')
+            # No space reserved for scroll bars (the grid is always sized to fit its rows).
+            'scrollbarWidth': 0,
+            ':getRowId': 'params => params.data.name',
+        }).classes('theme-card skew-project-grid').style(
+        f'width: {theme.CONTENT_WIDTH}px; height: {grid_height()}px; transition: height 200ms ease')
 
     grid.on('selectionChanged', on_selection_changed)
     grid.on('cellMouseOver', show_preview, ['data'])
@@ -452,18 +497,27 @@ def build_project_page(project: Project) -> None:
     }''')
     grid.on('mouseleave', hide_preview)
 
-    with content, ui.row().classes('w-full items-center gap-3'):
+    with content, ui.row().classes('add-parameter-row w-full items-center gap-3'):
         with ui.button('ADD PARAMETER', icon='add').props('unelevated no-caps') \
-                .classes('action-btn create-project-btn self-start').style(
+                .classes('add-parameter-button action-btn create-project-btn self-start').style(
                     f'background-color: {theme.PALETTE["ink"]} !important; '
-                    f'color: {theme.LOGO_COLOR} !important;'):
-            with ui.menu() as parameter_menu:
-                with ui.column().classes('p-3 gap-2').style('width: 300px'):
-                    parameter_prompt = ui.textarea(placeholder='Describe a new parameter...') \
-                        .props('outlined rows=2').classes('w-full create-project-textarea')
+                    f'color: {theme.LOGO_COLOR} !important;') as add_button:
+            # Opens to the right of the button, in line with it.
+            with ui.menu().props('anchor="center right" self="center left" :offset="[12, 0]"') \
+                    as parameter_menu:
+                # Width is set each time the window opens (see before-show below), so its
+                # right edge lines up with the right edge of the row.
+                with ui.row().classes('items-center gap-3 no-wrap p-3') \
+                        .style('width: var(--add-parameter-width, 600px)'):
+                    parameter_prompt = ui.input(placeholder='Describe a new parameter...') \
+                        .props('outlined dense').style('flex: 1 1 auto; min-width: 0')
 
                     async def submit_parameter() -> None:
                         if not parameter_submit.enabled:
+                            return
+                        if len(selectable_data) >= MAX_PARAMETERS:
+                            ui.notify(f'You can have at most {MAX_PARAMETERS} parameters. '
+                                      'Remove one to add another.', type='negative')
                             return
                         description = (parameter_prompt.value or '').strip()
                         if not description:
@@ -489,7 +543,9 @@ def build_project_page(project: Project) -> None:
                             while item.name in used:
                                 item.name = f'{name} ({suffix})'
                                 suffix += 1
-                            item.color = SERIES_COLORS[len(selectable_data) % len(SERIES_COLORS)]
+                            in_use = {d.color for d in selectable_data}
+                            item.color = next((c for c in SERIES_COLORS if c not in in_use),
+                                              SERIES_COLORS[len(selectable_data) % len(SERIES_COLORS)])
                             item.trace.update(name=item.name, line_color=item.color)
                             add_data(item)
                         except Exception as error:
@@ -506,7 +562,34 @@ def build_project_page(project: Project) -> None:
                         ui.notify(f'Added {item.name}. Select it to include it in the graph.', type='positive')
 
                     parameter_submit = ui.button('ADD', on_click=submit_parameter) \
-                        .props('unelevated no-caps').classes('action-btn w-full').style(
+                        .props('unelevated no-caps').classes('action-btn').style(
                             f'background-color: {theme.PALETTE["ink"]} !important; '
-                            f'color: {theme.LOGO_COLOR} !important;')
+                            f'color: {theme.LOGO_COLOR} !important; height: 40px; padding: 0 20px; '
+                            'flex-shrink: 0;')
 
+                    parameter_prompt.on('keydown.enter', submit_parameter)
+
+                parameter_menu.on('before-show', js_handler='''() => {
+                    const button = document.querySelector('.add-parameter-button');
+                    const row = button && button.closest('.add-parameter-row');
+                    if (!row) return;
+                    const gap = 12;   // matches the menu's offset
+                    const width = row.getBoundingClientRect().right
+                        - button.getBoundingClientRect().right - gap;
+                    document.documentElement.style.setProperty(
+                        '--add-parameter-width', Math.max(280, Math.floor(width)) + 'px');
+                }''')
+                parameter_menu.on('show', lambda: parameter_prompt.run_method('focus'))
+
+        def update_add_button() -> None:
+            """Grey out ADD PARAMETER while the table is full."""
+            if len(selectable_data) >= MAX_PARAMETERS:
+                add_button.props('disable')
+                add_button.style(replace='background-color: #B8C0CC !important; '
+                                         'color: #FFFFFF !important;')
+            else:
+                add_button.props(remove='disable')
+                add_button.style(replace=f'background-color: {theme.PALETTE["ink"]} !important; '
+                                         f'color: {theme.LOGO_COLOR} !important;')
+
+        update_add_button()

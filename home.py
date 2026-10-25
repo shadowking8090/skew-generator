@@ -2,6 +2,7 @@
 
 import base64
 import inspect
+import json
 import logging
 from typing import Any, Callable
 
@@ -9,6 +10,7 @@ import numpy as np
 from nicegui import run, ui
 
 import theme
+from loadingScreen import fade_to, install_home_loader
 from projects import PROJECTS, Project, register_project
 from wrapper import generate_project, project_error_message
 
@@ -66,8 +68,8 @@ CSS = f'''
         font-size: 14px; line-height: 1.4; color: {P['muted']};
     }}
     .project-card-meta {{
-        font-family: var(--font-page);
-        font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+        font-family: var(--font-heading);
+        font-size: 11px; font-weight: 700 !important; letter-spacing: 0.08em;
         text-transform: uppercase; color: {P['muted']};
     }}
 '''
@@ -184,6 +186,29 @@ def _preview_for(project: Project) -> str | None:
     return result
 
 
+_base_names: dict[str, list[str]] = {}
+
+
+def _factor_count(project: Project) -> int | None:
+    """How many factors (selectable parameters) the project has right now.
+
+    Matches the project page: the project's own curves plus any added parameters,
+    minus removed ones and the always-shown curves (composite, reference).
+    Returns None if it can't be worked out, so the card just omits the label.
+    """
+    try:
+        if project.id not in _base_names:
+            _base_names[project.id] = [d.name for d in project.load()]
+        always = set(getattr(project, 'always_shown', ()))
+        removed = set(getattr(project, 'removed_parameters', ()))
+        extra = [d.name for d in getattr(project, 'extra_parameters', ())]
+        names = set(_base_names[project.id]) | set(extra)
+        return len(names - always - removed)
+    except Exception as e:
+        print(f'[home] no factor count for {project.id!r}: {e}')
+        return None
+
+
 # Page
 
 def home_page(on_project_submit: Callable[..., Any] | None = None) -> None:
@@ -194,6 +219,7 @@ def home_page(on_project_submit: Callable[..., Any] | None = None) -> None:
     and opened directly when no callback is supplied.
     """
 
+    install_home_loader()   # loading screen when arriving from a project page
     theme.setup()
     theme.header(home_link=False)
 
@@ -204,7 +230,7 @@ def home_page(on_project_submit: Callable[..., Any] | None = None) -> None:
     with ui.column().classes('new-band w-full items-center') \
             .style('padding: 32px 16px'):
 
-        with ui.column().classes('w-full gap-3').style(f'max-width: {PAGE_WIDTH}px'):
+        with ui.column().classes('w-full gap-3').style(f'max-width: {PAGE_WIDTH}px; position: relative'):
 
             ui.label('PROJECTS').classes('project-band-title')
 
@@ -283,7 +309,7 @@ def home_page(on_project_submit: Callable[..., Any] | None = None) -> None:
                                         await result
                                 else:
                                     project = register_project(title, subtitle, curves)
-                                    ui.navigate.to(f'/project/{project.id}')
+                                    fade_to(f'/project/{project.id}')
                             except Exception as e:
                                 logger.exception('Project creation failed')
                                 set_busy(False)
@@ -325,7 +351,7 @@ def home_page(on_project_submit: Callable[..., Any] | None = None) -> None:
 
                     with ui.card().props('flat') \
                             .classes('theme-card project-card p-0 gap-0 cursor-pointer') \
-                            .on('click', lambda p=project: ui.navigate.to(f'/project/{p.id}')):
+                            .on('click', js_handler=f"() => window.__skewFadeNavigate({json.dumps(f'/project/{project.id}')})"):
 
                         if src:
                             ui.image(src).props(
@@ -343,3 +369,8 @@ def home_page(on_project_submit: Callable[..., Any] | None = None) -> None:
 
                             ui.label(project.title.upper()).classes('project-card-title')
                             ui.label(project.subtitle).classes('project-card-text')
+
+                            count = _factor_count(project)
+                            if count is not None:
+                                ui.label(f'{count} factor{"" if count == 1 else "s"}') \
+                                    .classes('project-card-meta').style('margin-top: 6px')
