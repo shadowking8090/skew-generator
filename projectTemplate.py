@@ -4,6 +4,8 @@ This is the body of the old main.py wrapped in a function. All state (figure,
 checked rows, hover slots) lives inside the call, so each visit, and each
 project, gets its own independent copy."""
 
+import json
+
 import numpy as np
 import plotly.graph_objects as go
 from nicegui import events, run, ui
@@ -12,6 +14,7 @@ import theme
 from data import Data
 from downloadMenu import download_menu
 from projects import Project
+from palette import rgba
 from homeButton import home_button
 from transitions import animate_traces, hide_curve, rescale_curve, show_curve
 from wrapper import ask
@@ -45,7 +48,7 @@ def build_project_page(project: Project) -> None:
         # can still show a trace's own hovertemplate, which is what made Perfect Normal differ).
         # The name is the bold first line of the same box, then identical MSE / Density lines.
         trace.hovertemplate = ('<b>%{fullData.name}</b><br>'
-                               'MSE %{x:.3f}<br>Density %{y:.3f}<extra></extra>')
+                               'Mean squared error %{x:.3f}<br>Relative density %{y:.3f}<extra></extra>')
         fig.add_trace(trace)
 
     PREVIEW = len(always_data)
@@ -55,7 +58,9 @@ def build_project_page(project: Project) -> None:
             x=[], y=[],
             name=f'Row preview {slot}',
             mode='lines',
-            line=dict(color=theme.PALETTE['preview'], width=2, dash='dot'),
+            line=dict(color=theme.PALETTE['preview'], width=3, dash='solid'),
+            fill='tozeroy',
+            fillcolor=rgba(theme.PALETTE['preview'], 0.22),
             visible=False,
             showlegend=False,
             hoverinfo='skip',
@@ -87,6 +92,15 @@ def build_project_page(project: Project) -> None:
             { overflow: visible !important; }
         .theme-card:has(.js-plotly-plot) { overflow: visible !important; position: relative; z-index: 5; }
     ''')
+    # Plotly draws hover boxes as SVG paths. A matching rounded stroke softens
+    # their corners; CSS border-radius does not apply to these paths.
+    ui.add_css(f'''
+        .skew-project-plot .hoverlayer .hovertext path {{
+            stroke: {theme.PALETTE['ink']} !important;
+            stroke-width: 8px !important;
+            stroke-linejoin: round;
+        }}
+    ''')
 
     theme.setup()
     theme.header()
@@ -102,8 +116,84 @@ def build_project_page(project: Project) -> None:
     content = theme.fit_to_screen()
     with content:
         theme.heading(project.title.upper(), project.subtitle.upper())
-        plot = ui.plotly(fig).classes('theme-card').style(
+        plot = ui.plotly(fig).classes('theme-card skew-project-plot').style(
             f'width: {theme.CONTENT_WIDTH}px; height: 240px')
+
+    # Use the graph's hover-label styling instead of browser-native SVG titles.
+    axis_tooltips_js = r'''
+        const root = getHtmlElement(__PLOT_ID__);
+        if (root._axisTooltipCleanup) root._axisTooltipCleanup();
+        const explanations = {
+            '.xtitle': ['Mean squared error', 'Errors: 0 means none; 1 means all answers wrong.'],
+            '.ytitle': ['Relative density', 'Higher values mean more concentrated errors, not percentages.']
+        };
+        const tooltip = document.createElement('div');
+        tooltip.setAttribute('role', 'tooltip');
+        tooltip.id = 'axis-tooltip-__PLOT_ID__';
+        Object.assign(tooltip.style, {
+            position: 'absolute', display: 'none', pointerEvents: 'none',
+            zIndex: '20', background: __BG__, color: 'white',
+            borderRadius: '4px', padding: '7px 8px', fontFamily: __FONT__,
+            fontSize: '11px', lineHeight: '1.3', textAlign: 'left',
+            width: 'max-content', maxWidth: '310px'
+        });
+        const heading = document.createElement('b');
+        const description = document.createElement('div');
+        tooltip.append(heading, description);
+        root.appendChild(tooltip);
+        const findLabel = event => event.target.closest?.('.xtitle, .ytitle');
+        const hide = () => { tooltip.style.display = 'none'; };
+        const show = event => {
+            const label = findLabel(event);
+            if (!label || !root.contains(label)) return;
+            const [title, explanation] = explanations[label.matches('.xtitle') ? '.xtitle' : '.ytitle'];
+            heading.textContent = title;
+            description.textContent = explanation;
+            tooltip.style.display = 'block';
+            const box = root.getBoundingClientRect();
+            const anchor = label.getBoundingClientRect();
+            const sx = box.width / root.offsetWidth || 1;
+            const sy = box.height / root.offsetHeight || 1;
+            const left = (anchor.left + anchor.width / 2 - box.left) / sx - tooltip.offsetWidth / 2;
+            const top = (anchor.top - box.top) / sy - tooltip.offsetHeight - 8;
+            tooltip.style.left = Math.max(4, Math.min(left, root.offsetWidth - tooltip.offsetWidth - 4)) + 'px';
+            tooltip.style.top = Math.max(4, top) + 'px';
+        };
+        const attach = () => {
+            for (const selector of Object.keys(explanations)) {
+                for (const label of root.querySelectorAll(selector)) {
+                    label.querySelector('title')?.remove();
+                    label.style.pointerEvents = 'all';
+                    label.style.cursor = 'help';
+                    label.setAttribute('tabindex', '0');
+                    label.setAttribute('aria-describedby', tooltip.id);
+                }
+            }
+        };
+        attach();
+        const observer = new MutationObserver(records => {
+            if (records.some(record => !tooltip.contains(record.target))) attach();
+        });
+        observer.observe(root, {childList: true, subtree: true});
+        const leave = event => { if (findLabel(event)) hide(); };
+        root.addEventListener('pointerover', show);
+        root.addEventListener('pointerout', leave);
+        root.addEventListener('pointerleave', hide);
+        root.addEventListener('focusin', show);
+        root.addEventListener('focusout', leave);
+        root._axisTooltipCleanup = () => {
+            observer.disconnect();
+            root.removeEventListener('pointerover', show);
+            root.removeEventListener('pointerout', leave);
+            root.removeEventListener('pointerleave', hide);
+            root.removeEventListener('focusin', show);
+            root.removeEventListener('focusout', leave);
+            tooltip.remove();
+        };
+    '''.replace('__PLOT_ID__', str(plot.id)).replace(
+        '__BG__', json.dumps(theme.PALETTE['ink'])).replace(
+        '__FONT__', json.dumps(theme.font_stack('plot')))
+    ui.timer(0.1, lambda: ui.run_javascript(axis_tooltips_js), once=True)
 
     # Hover state and callbacks
 
@@ -144,8 +234,10 @@ def build_project_page(project: Project) -> None:
         active_slot = PREVIEW + next_slot % PREVIEW_SLOTS
         next_slot += 1
         fig.data[active_slot].update(x=x, y=y, name=f'{data.name} preview',
-                                     line_color=data.color, visible=True)
-        show_curve(plot, active_slot, x, y, color=data.color)
+                                     line_color=data.color, fillcolor=rgba(data.color, 0.22),
+                                     visible=True)
+        show_curve(plot, active_slot, x, y, color=data.color,
+                   fillcolor=rgba(data.color, 0.22))
 
     def show_preview(event: events.GenericEventArguments) -> None:
         nonlocal hovered_name

@@ -178,6 +178,11 @@ _PREVIEW_JS = '''
         st.m = 0;
         const props = {x: [__X__], y: [st.base.map(() => 0)], visible: [true]};
         if (color) props['line.color'] = [color];
+        const fillcolor = __FILLCOLOR__;
+        if (fillcolor) {
+            props.fill = ['tozeroy'];
+            props.fillcolor = [fillcolor];
+        }
         Plotly.restyle(gd, props, [idx]);
         run(1);
     } else if (mode === 'hide') {
@@ -190,22 +195,25 @@ _PREVIEW_JS = '''
 '''
 
 
-def _preview(plot, index, mode, x=None, y=None, color=None, duration=PREVIEW_DURATION) -> None:
+def _preview(plot, index, mode, x=None, y=None, color=None, duration=PREVIEW_DURATION,
+             fillcolor=None) -> None:
     js = (_PREVIEW_JS
           .replace('__ID__', str(plot.id))
           .replace('__INDEX__', str(int(index)))
           .replace('__MODE__', json.dumps(mode))
           .replace('__DURATION__', str(int(duration)))
           .replace('__COLOR__', json.dumps(color))
+          .replace('__FILLCOLOR__', json.dumps(fillcolor))
           .replace('__X__', json.dumps(_floats(x) if x is not None else []))
           .replace('__Y__', json.dumps(_floats(y) if y is not None else [])))
     ui.run_javascript(js)
 
 
 def show_curve(plot: ui.plotly, index: int, x: Sequence[float], y: Sequence[float],
-               color: Optional[str] = None, duration: int = PREVIEW_DURATION) -> None:
+               color: Optional[str] = None, duration: int = PREVIEW_DURATION,
+               *, fillcolor: Optional[str] = None) -> None:
     """Show trace `index` with curve (x, y) in `color`, growing its height from 0 to full."""
-    _preview(plot, index, 'show', x, y, color, duration)
+    _preview(plot, index, 'show', x, y, color, duration, fillcolor)
 
 
 def hide_curve(plot: ui.plotly, index: int, duration: int = PREVIEW_DURATION) -> None:

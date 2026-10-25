@@ -3,6 +3,7 @@
 import numpy as np
 import plotly.graph_objects as go
 from nicegui import events, ui
+from graph_entrance import animate_graph_loading
 
 from sampleData import LAYOUT, sample_data
     
@@ -139,6 +140,7 @@ ui.add_css('''
 ui.add_css('.modebar-container, .js-plotly-plot .legend { display: none !important; }')
 
 plot = ui.plotly(fig).classes('responsive-chart self-center')
+animate_graph_loading(plot)
 
 
 # Hover state and callbacks

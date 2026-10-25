@@ -22,7 +22,7 @@ def test_generate_data_uses_description_and_returns_plot_data():
         items = wrapper.generate_data('Model fatigue')
     response.raise_for_status.assert_called_once()
     assert 'Model fatigue' in post.call_args.kwargs['json']['prompt']
-    assert post.call_args.kwargs['json']['model'] == 'gemini-1.5-flash'
+    assert 'model' not in post.call_args.kwargs['json']
     assert post.call_args.kwargs['timeout'] == 60
     assert len(items) == 1 and isinstance(items[0], Data)
     assert items[0].name == 'Test'
@@ -114,3 +114,20 @@ def test_disabled_api_explains_how_to_enable_it():
     message = wrapper.project_error_message(requests.HTTPError(response=response))
     assert 'Enable the Generative Language API' in message
     assert 'wait a few minutes' in message
+
+
+@pytest.mark.parametrize('code,status,expected', [
+    ('timeout', 504, 'took too long'),
+    ('incomplete', 502, 'incomplete'),
+    ('blocked', 422, 'neutral wording'),
+    ('model_unavailable', 404, 'Update MODELS'),
+    ('configuration', 500, 'settings checked'),
+    ('connection', 502, 'could not reach Gemini'),
+])
+def test_worker_failure_codes_have_specific_messages(code, status, expected):
+    response = requests.Response()
+    response.status_code = status
+    response._content = json.dumps({'code': code, 'error': 'private upstream detail'}).encode()
+    message = wrapper.project_error_message(requests.HTTPError(response=response))
+    assert expected in message
+    assert 'private upstream detail' not in message

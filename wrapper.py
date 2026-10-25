@@ -8,7 +8,6 @@ from palette import SERIES_COLORS
 from sampleData import binom, make_data
 
 WORKER_URL = "https://my-hackathon-proxy.shadowking8090.workers.dev"
-MODEL = 'gemini-1.5-flash'
 
 
 class InvalidProjectPrompt(ValueError):
@@ -36,6 +35,21 @@ def project_error_message(error: Exception) -> str:
     if isinstance(error, requests.HTTPError):
         status = error.response.status_code if error.response is not None else None
         if error.response is not None:
+            try:
+                payload = error.response.json()
+            except ValueError:
+                payload = {}
+            code = payload.get('code') if isinstance(payload, dict) else None
+            messages = {
+                'configuration': 'The project service needs its API key or model settings checked in Cloudflare.',
+                'timeout': 'The AI models took too long to respond. Please try again in a moment.',
+                'connection': 'The proxy could not reach Gemini. Please try again shortly.',
+                'blocked': 'The AI service could not answer this description. Try neutral wording about the task and outcome.',
+                'model_unavailable': 'The configured AI models are unavailable. Update MODELS in the Cloudflare Worker.',
+                'incomplete': 'The AI response was incomplete. Please try creating the project again.',
+            }
+            if code in messages:
+                return messages[code]
             details = error.response.text.lower()
             if 'has not been used in project' in details or 'service_disabled' in details:
                 return ('Gemini API is not enabled for this Google Cloud project. '
@@ -49,6 +63,14 @@ def project_error_message(error: Exception) -> str:
             return 'The project service is receiving too many requests. Wait a moment and try again.'
         if status in (401, 403):
             return 'The project service could not sign in. Its API access needs to be checked before trying again.'
+        if status == 504:
+            return 'The AI service took too long to respond. Please try again in a moment.'
+        if status == 422:
+            return 'The AI service could not generate data for this description. Try neutral wording about what you want to measure.'
+        if status == 400:
+            return 'The AI service rejected the request. Check the model settings in Cloudflare and try again.'
+        if status == 502:
+            return 'The proxy could not get a usable response from Gemini. Please try again shortly.'
         return 'The project service is temporarily unavailable. Please try again shortly.'
     if isinstance(error, ValueError):
         return 'We could not get a usable project from the response. Please try again with a clear task and outcome.'
@@ -58,7 +80,7 @@ def project_error_message(error: Exception) -> str:
 def ask(prompt: str, *, timeout: int = 60) -> str:
     """Send a prompt to the Cloudflare Worker and return Gemini's reply."""
     response = requests.post(
-        WORKER_URL, json={"prompt": prompt, "model": MODEL}, timeout=timeout,
+        WORKER_URL, json={"prompt": prompt}, timeout=timeout,
         headers={'X-Request-Timeout-Ms': str(max(1000, timeout * 1000 - 1000))},
     )
     response.raise_for_status()

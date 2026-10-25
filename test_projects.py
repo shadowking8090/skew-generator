@@ -25,6 +25,7 @@ def test_creation_registers_defaults_and_five_independent_parameters():
         assert projects.PROJECTS_BY_ID[project.id] is project
         assert project in projects.PROJECTS
         assert project.title == 'Recognition under fatigue'
+        assert project.id == 'recognition-under-fatigue'
         assert project.subtitle == 'How fatigue affects recognition errors.'
         data = project.load()
         assert [d.name for d in data[:2]] == ['Composite', 'Perfect Normal']
@@ -32,6 +33,8 @@ def test_creation_registers_defaults_and_five_independent_parameters():
         data[2].name = 'Changed'
         assert project.load()[2].name == 'Factor 0'
         assert project.layout()['xaxis']['range'] == [0, 1]
+        assert project.layout()['xaxis_title'] == 'Mean squared error'
+        assert project.layout()['yaxis_title'] == 'Relative density'
     finally:
         projects.PROJECTS.remove(project)
         del projects.PROJECTS_BY_ID[project.id]
@@ -45,6 +48,12 @@ def test_wrong_parameter_count_does_not_register_project():
             projects.create_project('Fatigue')
     assert projects.PROJECTS == before
     assert projects.PROJECTS_BY_ID == registry
+
+
+def test_title_slugs_are_url_safe_and_handle_existing_names():
+    assert projects._project_slug('Caf\u00e9 & Accuracy!') == 'cafe-accuracy'
+    assert projects._project_slug('Left Right') == 'left-right-2'
+    assert projects._project_slug('???') == 'project'
 
 
 def test_invalid_topic_stops_before_curve_creation_or_registration():

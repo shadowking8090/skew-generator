@@ -65,7 +65,7 @@ _NAME_TO_ID.update(zip(
 ))
 
 LAYOUT = dict(
-    xaxis_title="Mean squared error (0 = no errors, 1 = all wrong)",
+    xaxis_title="Mean squared error",
     yaxis_title="Relative density",
     xaxis=dict(range=[0, 1]),
     yaxis=dict(range=[0, 1.05]),
