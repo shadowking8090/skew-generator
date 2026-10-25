@@ -44,6 +44,7 @@ FONT_USE = {
     'subheading': 'Skew Display Light',   # the line under the title
     'plot':       'Skew Sans',   # axis labels, ticks and hover tooltips
     'table':      'Skew Sans',   # the grid: header and cells
+    'menu':       'Skew Sans',   # the side drawer's project list
 }
 FONT_FALLBACK = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
 
@@ -64,6 +65,7 @@ SCREEN_MARGIN = 24                 # px of breathing room kept around the scaled
 LOGO_FILE = STATIC_DIR / 'logo.png'
 LOGO_ASPECT = 716 / 198            # width / height of static/logo.png
 HEADER_HEIGHT = 48                 # px
+LOGO_COLOR = '#FAFDED'             # the off-white inside logo.png and download.png (250, 253, 237)
 LOGO_HEIGHT = 28                   # px
 
 
@@ -82,7 +84,7 @@ def _font_face_css() -> str:
     return '\n'.join(rules)
 
 
-_FONT_ROLES = ('page', 'heading', 'subheading', 'plot', 'table')
+_FONT_ROLES = ('page', 'heading', 'subheading', 'plot', 'table', 'menu')
 
 
 def _font_css() -> str:
@@ -117,6 +119,24 @@ def setup() -> None:
             font-size: 14px; font-weight: 400; line-height: 1.4; color: {p['muted']};
         }}
 
+        /* home screen project cards: title in the heading font, description in the subheading font */
+        .theme-card-title {{
+            font-family: var(--font-heading);
+            font-size: 18px; font-weight: 700; line-height: 1.2;
+            letter-spacing: -0.01em; color: {p['ink']};
+        }}
+        .theme-card-text {{
+            font-family: var(--font-subheading);
+            font-size: 14px; line-height: 1.4; color: {p['muted']};
+        }}
+
+        /* side drawer (projects menu) */
+        .q-drawer, .q-drawer .q-item, .q-drawer .q-item__label {{ font-family: var(--font-menu); }}
+        .theme-drawer-title {{
+            font-family: var(--font-heading);
+            font-size: 12px; letter-spacing: 0.08em; color: {p['muted']};
+        }}
+
         /* white cards for the plot and the grid */
         .theme-card {{
             background: {p['panel']};
@@ -139,6 +159,7 @@ def setup() -> None:
             --ag-checkbox-checked-color: {p['accent']};
             --ag-range-selection-border-color: {p['accent']};
             --ag-font-size: 14px;
+            --ag-header-font-weight: 700;
             --ag-borders: none;                              /* the card supplies the border */
             --ag-header-column-separator-display: none;
             --ag-cell-horizontal-padding: 14px;
@@ -146,9 +167,10 @@ def setup() -> None:
         :is(.ag-theme-quartz, .ag-theme-alpine, .ag-theme-balham, .ag-theme-material) .ag-root-wrapper {{ border: none; }}
         :is(.ag-theme-quartz, .ag-theme-alpine, .ag-theme-balham, .ag-theme-material) .ag-header-cell-resize {{ display: none; }}
         :is(.ag-theme-quartz, .ag-theme-alpine, .ag-theme-balham, .ag-theme-material) .ag-header-cell-text {{
-            font-size: 11px; font-weight: 600;
+            font-size: 11px; font-weight: 700 !important;
             letter-spacing: 0.08em; text-transform: uppercase;
         }}
+        :is(.ag-theme-quartz, .ag-theme-alpine, .ag-theme-balham, .ag-theme-material) .ag-header-cell-label {{ font-weight: 700 !important; }}
         :is(.ag-theme-quartz, .ag-theme-alpine, .ag-theme-balham, .ag-theme-material) .ag-cell {{ display: flex; align-items: center; }}
         :is(.ag-theme-quartz, .ag-theme-alpine, .ag-theme-balham, .ag-theme-material) :is(.ag-body-vertical-scroll, .ag-body-horizontal-scroll) {{ display: none !important; }}
         :is(.ag-theme-quartz, .ag-theme-alpine, .ag-theme-balham, .ag-theme-material) .ag-body-viewport {{ overflow: hidden !important; }}
@@ -169,16 +191,18 @@ def _logo_data_uri() -> str | None:
 
 
 def header() -> None:
-    """Navy bar across the top with the logo centered."""
+    """Navy bar across the top with the logo centered. Clicking the logo goes home."""
     width = round(LOGO_HEIGHT * LOGO_ASPECT)
     uri = _logo_data_uri()
     with ui.header(fixed=True).classes('items-center justify-center px-4 py-0 shadow-none') \
             .style(f'background:{PALETTE["ink"]}; height:{HEADER_HEIGHT}px; min-height:{HEADER_HEIGHT}px'):
         if uri:
             ui.image(uri).props('fit=contain no-spinner no-transition') \
-                .style(f'width:{width}px; height:{LOGO_HEIGHT}px')
-        else:
-            ui.label('SKEW').classes('text-white text-lg font-bold')   # fallback if the file is missing
+                .style(f'width:{width}px; height:{LOGO_HEIGHT}px') \
+                .classes('cursor-pointer').on('click', lambda: ui.navigate.to('/'))   # logo = home
+        else:   # fallback if the file is missing
+            ui.label('SKEW').classes('text-white text-lg font-bold cursor-pointer') \
+                .on('click', lambda: ui.navigate.to('/'))
 
 
 _FIT_JS = '''

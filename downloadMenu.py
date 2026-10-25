@@ -27,9 +27,9 @@ from csv_export import MAX_POINTS, download_csv
 
 ICON_FILE = Path(__file__).parent / 'static' / 'download.png'
 ICON_SIZE = 22                              # px
-# Turns any opaque icon white so it shows on the navy header. Set to None to keep
-# your PNG's own colors (do that if the icon is already light).
-ICON_FILTER = 'brightness(0) invert(1)'
+# Set to 'brightness(0) invert(1)' to force the icon pure white. None keeps the PNG's own
+# off-white (#FAFDED), which matches the SKEW logo.
+ICON_FILTER = None
 INSET = 12                                  # px from the left edge of the window
 MIN_COUNT, MAX_COUNT, STEP = 100, 10_000, 100     # the slider: locked to multiples of STEP
 DEFAULT_COUNT = 1000

@@ -6,13 +6,15 @@ project, gets its own independent copy."""
 
 import numpy as np
 import plotly.graph_objects as go
-from nicegui import events, ui
+from nicegui import events, run, ui
 
 import theme
 from data import Data
 from downloadMenu import download_menu
 from projects import Project
+from homeButton import home_button
 from transitions import animate_traces, hide_curve, rescale_curve, show_curve
+from wrapper import ask
 
 
 def build_project_page(project: Project) -> None:
@@ -34,11 +36,18 @@ def build_project_page(project: Project) -> None:
 
     fig = go.Figure()
     for d in always_data:
-        fig.add_trace(go.Scatter(
+        trace = go.Scatter(
             d.trace,
             showlegend=False,
             hoverinfo='skip' if d.name in not_hoverable else None,
-        ))
+        )
+        if d.name not in not_hoverable:
+            # Short, narrow tooltip so it fits inside the 240px-tall plot
+            meta = trace.meta if isinstance(trace.meta, dict) else {}
+            trace.hovertemplate = ('MSE %{x:.3f}<br>Density %{y:.3f}'
+                                   + ('<br>Mean %{meta.mean:.3f}' if 'mean' in meta else '')
+                                   + '<extra>%{fullData.name}</extra>')
+        fig.add_trace(trace)
 
     PREVIEW = len(always_data)
     PREVIEW_SLOTS = 4
@@ -64,10 +73,21 @@ def build_project_page(project: Project) -> None:
         dragmode=False,
         xaxis_fixedrange=True,
         yaxis_fixedrange=True,
+        hoverlabel=dict(font_size=11, align='left', namelength=-1),
     )
     theme.style_figure(fig)
 
+    # One "0" in the bottom-left corner: the x axis keeps its 0, the y axis skips it.
+    # (Every curve is peak-scaled to 1, so these ticks suit every project.)
+    fig.update_yaxes(tickmode='array', tickvals=[0.25, 0.5, 0.75, 1.0])
+
     ui.add_css('.modebar-container, .js-plotly-plot .legend { display: none !important; }')
+    # Let hover labels draw outside the plot's SVG and card instead of being clipped
+    ui.add_css('''
+        .js-plotly-plot .plotly .main-svg, .js-plotly-plot .plotly .svg-container
+            { overflow: visible !important; }
+        .theme-card:has(.js-plotly-plot) { overflow: visible !important; position: relative; z-index: 5; }
+    ''')
 
     theme.setup()
     theme.header()
@@ -78,9 +98,10 @@ def build_project_page(project: Project) -> None:
         header_height=theme.HEADER_HEIGHT,
     )
 
+    home_button(current_id=project.id)
+
     content = theme.fit_to_screen()
     with content:
-        ui.link('← Projects', '/')
         theme.heading(project.title.upper(), project.subtitle.upper())
         plot = ui.plotly(fig).classes('theme-card').style(
             f'width: {theme.CONTENT_WIDTH}px; height: 240px')
@@ -213,4 +234,3 @@ def build_project_page(project: Project) -> None:
         if (row && !row.contains(event.relatedTarget)) emit();
     }''')
     grid.on('mouseleave', hide_preview)
-
