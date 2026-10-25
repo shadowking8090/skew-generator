@@ -42,8 +42,8 @@ def _error_layout(topic: str) -> dict:
     """Keep the axis titles short; the project page explains them on hover."""
     from sampleData import LAYOUT
     layout = deepcopy(LAYOUT)
-    layout['xaxis_title'] = 'Mean squared error'
-    layout['yaxis_title'] = 'Relative density'
+    layout['xaxis_title'] = 'Mean Squared Error'
+    layout['yaxis_title'] = 'Relative Density'
     layout['xaxis'].update(automargin=True, title_standoff=10)
     layout['yaxis'].update(automargin=True, title_standoff=10)
     return layout
