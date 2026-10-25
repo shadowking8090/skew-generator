@@ -91,7 +91,7 @@ download_menu(
 # Everything below sits in one centered column. The plot and the table are the same width,
 # and the whole block is scaled to fit the window (theme.fit_to_screen).
 TITLE = 'left and right accuracy'.upper()
-SUBTITLE = 'what is love?'.upper()
+SUBTITLE = 'the error distribution of people deciding between left and right.'.upper()
 
 content = theme.fit_to_screen()
 with content:
