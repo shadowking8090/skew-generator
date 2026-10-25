@@ -4,14 +4,18 @@ This is the body of the old main.py wrapped in a function. All state (figure,
 checked rows, hover slots) lives inside the call, so each visit, and each
 project, gets its own independent copy."""
 
+<<<<<<< Updated upstream
 import json
+=======
+from copy import deepcopy
+>>>>>>> Stashed changes
 
 import numpy as np
 import plotly.graph_objects as go
 from nicegui import events, run, ui
 
 import theme
-from data import Data
+from data import Data, clamp_weight, factor_contribution, weighted_composite
 from downloadMenu import download_menu
 from projects import Project
 from palette import rgba
@@ -23,13 +27,15 @@ from wrapper import ask
 def build_project_page(project: Project) -> None:
     # Data
 
-    sample_data = project.load()
+    # Own copy per visit, so slider weights never leak into other visits or users.
+    sample_data = deepcopy(project.load())
     always_shown = set(project.always_shown)
     not_hoverable = set(project.not_hoverable)
 
     always_data = [d for d in sample_data if d.name in always_shown]
     selectable_data = [d for d in sample_data if d.name not in always_shown]
     data_by_name = {d.name: d for d in selectable_data}
+    default_weights = {d.name: d.weight for d in selectable_data}   # sliders snap back to these
 
     COMPOSITE = next(i for i, d in enumerate(always_data) if d.name == project.composite)
     base_y = np.asarray(always_data[COMPOSITE].trace.y)
@@ -116,6 +122,8 @@ def build_project_page(project: Project) -> None:
         get_curve=lambda: (fig.data[COMPOSITE].x, fig.data[COMPOSITE].y),
         get_factors=lambda: checked_names,
         header_height=theme.HEADER_HEIGHT,
+        get_plot=lambda: plot,
+        graph_filename=project.id,
     )
 
     home_button(current_id=project.id)
@@ -223,9 +231,11 @@ def build_project_page(project: Project) -> None:
     active_slot = None
     next_slot = 0
 
+    def chosen(names: set[str]) -> list[Data]:
+        return [d for d in selectable_data if d.name in names]
+
     def composite_raw(names: set[str]) -> np.ndarray:
-        chosen = [d for d in selectable_data if d.name in names]
-        return base_y + sum((np.asarray(d.trace.y) for d in chosen), np.zeros_like(base_y))
+        return weighted_composite(base_y, chosen(names))
 
     def scale_for(names: set[str]) -> float:
         return 1 / composite_raw(names).max()
@@ -241,8 +251,11 @@ def build_project_page(project: Project) -> None:
                 active_slot = None
             return
 
-        scale = scale_for(checked_names | {data.name})
-        x, y = data.trace.x, scale * np.asarray(data.trace.y)
+        # The hovered factor's slice of the composite it would be part of,
+        # at its current population share and the composite's display scale.
+        names = checked_names | {data.name}
+        x = data.trace.x
+        y = scale_for(names) * factor_contribution(data, chosen(names))
 
         if rescale_only:
             if active_slot is not None:
@@ -277,12 +290,13 @@ def build_project_page(project: Project) -> None:
         hovered_name = None
         update_preview()
 
-    def refresh_plot() -> None:
+    def refresh_plot(*, duration: int | None = None) -> None:
         old_y = np.asarray(fig.data[COMPOSITE].y)
         new_y = scale_for(checked_names) * composite_raw(checked_names)
         fig.data[COMPOSITE].y = new_y
         update_preview(rescale_only=True)
-        animate_traces(plot, {COMPOSITE: new_y}, starts={COMPOSITE: old_y})
+        animate_traces(plot, {COMPOSITE: new_y}, starts={COMPOSITE: old_y},
+                       duration=500 if duration is None else duration)
 
     async def on_selection_changed(event: events.GenericEventArguments) -> None:
         rows = await grid.get_selected_rows()
@@ -304,7 +318,10 @@ def build_project_page(project: Project) -> None:
         go.Scatter(item.trace, name=item.name, line_color=item.color)
         data_by_name[item.name] = item
         selectable_data.append(item)
-        grid.options['rowData'].append({'name': item.name, 'color': item.color})
+        grid.options['rowData'].append({
+            'name': item.name, 'color': item.color, 'weight': item.weight,
+            'default_weight': item.weight, 'weight_source': item.weight_source,
+        })
         grid.update()
 
     # Grid
@@ -316,9 +333,22 @@ def build_project_page(project: Project) -> None:
         return dot;
     }'''
 
-    SELECT_W, SWATCH_W = 48, 48
-    NAME_W = theme.CONTENT_WIDTH - 2 - SELECT_W - SWATCH_W
+    SELECT_W, SWATCH_W, WEIGHT_W = 48, 48, 168
+    NAME_W = theme.CONTENT_WIDTH - 2 - SELECT_W - SWATCH_W - WEIGHT_W
     GRID_ROW_H = GRID_HEADER_H = 40
+
+    def on_weight_changed(event: events.GenericEventArguments) -> None:
+        args = event.args if isinstance(event.args, dict) else {}
+        data = data_by_name.get(args.get('name'))
+        if data is None:
+            return
+        data.weight = clamp_weight(args.get('weight'), default=data.weight)
+        if data.name in checked_names:
+            refresh_plot(duration=120)        # also rescales the hover preview
+        elif data.name == hovered_name:
+            update_preview(rescale_only=True)  # unchecked but hovered: preview follows the slider
+
+    ui.on('factor-weight', on_weight_changed)
 
     with content:
         grid = ui.aggrid({
@@ -327,11 +357,20 @@ def build_project_page(project: Project) -> None:
             'columnDefs': [
                 {'field': 'color', 'headerName': '', ':cellRenderer': COLOR_SWATCH,
                  'width': SWATCH_W, 'minWidth': SWATCH_W, 'maxWidth': SWATCH_W},
+<<<<<<< Updated upstream
                 {'field': 'name', 'headerName': 'NAME', 'width': NAME_W},
+=======
+                {'field': 'name', 'headerName': 'Name', 'width': NAME_W},
+                {'field': 'weight', 'headerName': 'Weight', 'width': WEIGHT_W,
+                 'minWidth': WEIGHT_W, 'maxWidth': WEIGHT_W,
+                 ':cellRenderer': theme.WEIGHT_SLIDER_JS},
+>>>>>>> Stashed changes
             ],
             'selectionColumnDef': {'width': SELECT_W, 'minWidth': SELECT_W, 'maxWidth': SELECT_W,
                                    'resizable': False},
-            'rowData': [{'name': d.name, 'color': d.color} for d in selectable_data],
+            'rowData': [{'name': d.name, 'color': d.color, 'weight': d.weight,
+                         'default_weight': default_weights[d.name],
+                         'weight_source': d.weight_source} for d in selectable_data],
             'rowSelection': {'mode': 'multiRow'},
             'domLayout': 'autoHeight',
             'rowHeight': GRID_ROW_H,

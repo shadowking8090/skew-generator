@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from nicegui import ui
@@ -23,4 +24,10 @@ def project(project_id: str) -> None:
     install_graph_loading()
 
 
-ui.run(title='SKEW', favicon=Path(__file__).parent / 'static' / 'favicon.png')
+ui.run(
+    host="0.0.0.0",
+    port=int(os.environ.get("PORT", 8080)),
+    reload=False,
+    title='SKEW',
+    favicon=Path(__file__).parent / 'static' / 'favicon.png'
+)

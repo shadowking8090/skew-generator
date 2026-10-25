@@ -11,7 +11,9 @@ def reply(count):
     return json.dumps({'title': 'Recognition under fatigue',
                        'subtitle': 'How fatigue affects recognition errors.',
                        'curves': [dict(name=f'Factor {i}', trials=20,
-                                      rate=0.3 + i * 0.05, bw=0.06)
+                                      rate=0.3 + i * 0.05, bw=0.06,
+                                      weight=0.1 + i * 0.05,
+                                      weight_source=f'About {10 + i * 5}% of people')
                                   for i in range(count)]})
 
 
@@ -22,6 +24,8 @@ def test_creation_registers_defaults_and_five_independent_parameters():
         assert 'exactly 5' in ask.call_args.args[0]
         ask.assert_called_once()
         assert 'First decide whether' in ask.call_args.args[0]
+        assert 'weight is required' in ask.call_args.args[0]
+        assert 'weight_source is required' in ask.call_args.args[0]
         assert projects.PROJECTS_BY_ID[project.id] is project
         assert project in projects.PROJECTS
         assert project.title == 'Recognition under fatigue'
@@ -30,6 +34,7 @@ def test_creation_registers_defaults_and_five_independent_parameters():
         data = project.load()
         assert [d.name for d in data[:2]] == ['Composite', 'Perfect Normal']
         assert len(data) == 7
+        assert [round(d.weight, 2) for d in data[2:]] == [0.1, 0.15, 0.2, 0.25, 0.3]
         data[2].name = 'Changed'
         assert project.load()[2].name == 'Factor 0'
         assert project.layout()['xaxis']['range'] == [0, 1]

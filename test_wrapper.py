@@ -5,14 +5,18 @@ import numpy as np
 import pytest
 import requests
 
+import plotly.graph_objects as go
+
 import wrapper
-from data import Data
+from data import Data, weighted_composite
 from sampleData import x
 
 
 def payload(**changes):
     return json.dumps({'curves': [dict(name='Test (synthetic)', trials=20,
-                                      rate=0.4, bw=0.06, **changes)]})
+                                      rate=0.4, bw=0.06, weight=0.18,
+                                      weight_source='About 18% of working adults',
+                                      **changes)]})
 
 
 def test_generate_data_uses_description_and_returns_plot_data():
@@ -30,6 +34,8 @@ def test_generate_data_uses_description_and_returns_plot_data():
     assert np.all(np.isfinite(items[0].trace.y))
     assert min(items[0].trace.y) >= 0
     assert max(items[0].trace.y) == pytest.approx(0.9)
+    assert items[0].weight == pytest.approx(0.18)
+    assert '18%' in items[0].weight_source
 
 
 def test_accepts_json_code_block():
@@ -39,6 +45,8 @@ def test_accepts_json_code_block():
 @pytest.mark.parametrize('field,value', [
     ('trials', True), ('trials', 0), ('trials', 1001),
     ('rate', float('nan')), ('rate', 1.1), ('bw', 0),
+    ('weight', 0), ('weight', 1.1), ('weight', float('nan')),
+    ('weight_source', ''), ('weight_source', 'x' * 121),
     ('name', 'Composite'), ('name', ''),
 ])
 def test_rejects_invalid_parameters(field, value):
@@ -116,6 +124,7 @@ def test_disabled_api_explains_how_to_enable_it():
     assert 'wait a few minutes' in message
 
 
+<<<<<<< Updated upstream
 @pytest.mark.parametrize('code,status,expected', [
     ('timeout', 504, 'took too long'),
     ('incomplete', 502, 'incomplete'),
@@ -131,3 +140,43 @@ def test_worker_failure_codes_have_specific_messages(code, status, expected):
     message = wrapper.project_error_message(requests.HTTPError(response=response))
     assert expected in message
     assert 'private upstream detail' not in message
+=======
+def test_weighted_composite_keeps_unclaimed_share_on_the_baseline():
+    base = np.array([1.0, 1.0])
+    factor = Data(go.Scatter(x=[0, 1], y=[0.0, 4.0]), 'Age', 'red', weight=0.25)
+    mixed = weighted_composite(base, [factor])
+    # Curves are mixed as densities (area 1): base [1, 1] has area 1, the factor area 2.
+    np.testing.assert_allclose(mixed, 0.75 * base + 0.25 * np.array([0.0, 2.0]))
+
+
+def test_weighted_composite_mixes_by_area_not_peak_height():
+    grid = np.linspace(0, 1, 601)
+    base = np.ones_like(grid)
+    narrow = Data(go.Scatter(x=grid, y=np.exp(-0.5 * ((grid - 0.3) / 0.02) ** 2)), 'N', 'red', weight=0.2)
+    wide = Data(go.Scatter(x=grid, y=np.exp(-0.5 * ((grid - 0.7) / 0.10) ** 2)), 'W', 'blue', weight=0.2)
+    mixed = weighted_composite(base, [narrow, wide])
+    left, right = mixed[grid < 0.5], mixed[grid >= 0.5]
+    # Same share means the same number of people on each side, whatever the width.
+    excess = lambda part: np.sum(part - 0.6) * (grid[1] - grid[0])
+    np.testing.assert_allclose(excess(left), excess(right), atol=0.01)   # peak-mixing is ~5x off
+    np.testing.assert_allclose(np.sum((mixed[1:] + mixed[:-1]) / 2) * (grid[1] - grid[0]), 1.0, atol=1e-6)
+
+
+def test_factor_contribution_is_that_factors_slice_of_the_composite():
+    from data import factor_contribution
+    base = np.array([1.0, 1.0])
+    a = Data(go.Scatter(x=[0, 1], y=[2.0, 0.0]), 'A', 'red', weight=0.3)
+    b = Data(go.Scatter(x=[0, 1], y=[0.0, 2.0]), 'B', 'blue', weight=0.2)
+    mixed = weighted_composite(base, [a, b])
+    np.testing.assert_allclose(factor_contribution(a, [a, b]), 0.3 * np.array([2.0, 0.0]))
+    np.testing.assert_allclose(
+        mixed, 0.5 * base + factor_contribution(a, [a, b]) + factor_contribution(b, [a, b]))
+
+
+def test_weighted_composite_renormalizes_when_shares_exceed_one():
+    base = np.array([10.0, 10.0])
+    a = Data(go.Scatter(x=[0, 1], y=[2.0, 0.0]), 'A', 'red', weight=0.6)
+    b = Data(go.Scatter(x=[0, 1], y=[0.0, 2.0]), 'B', 'blue', weight=0.6)
+    mixed = weighted_composite(base, [a, b])
+    np.testing.assert_allclose(mixed, 0.5 * np.array([2.0, 0.0]) + 0.5 * np.array([0.0, 2.0]))
+>>>>>>> Stashed changes
